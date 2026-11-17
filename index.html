@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TikTok Split" />
-  <title>TikTok & Personal Account Excel Tracker</title>
+  <title>TikTok & Personal Account Excel Tracker (Auto-Save + Manual Save)</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -41,7 +41,7 @@
     #lockScreen {
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at top, #1e293b, #090d16 70%);
+      background: radial-gradient(circle at top, rgba(30, 41, 59, 0.96), rgba(9, 13, 22, 0.98) 70%);
       z-index: 9999;
       display: flex;
       align-items: center;
@@ -53,36 +53,37 @@
       background: #162032;
       border: 1px solid var(--grid-border);
       border-radius: 16px;
-      padding: 28px 22px;
+      padding: 26px 22px;
       width: 100%;
-      max-width: 360px;
+      max-width: 400px;
       text-align: center;
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     }
 
     .lock-badge {
-      width: 54px;
-      height: 54px;
+      width: 52px;
+      height: 52px;
       border-radius: 14px;
       background: rgba(16, 185, 129, 0.15);
       border: 1px solid rgba(16, 185, 129, 0.4);
       color: var(--excel-green);
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 14px;
+      margin: 0 auto 12px;
     }
 
     .lock-card h2 {
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       margin-bottom: 6px;
     }
 
     .lock-card p {
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       color: var(--muted);
-      margin-bottom: 18px;
+      margin-bottom: 16px;
+      line-height: 1.4;
     }
 
     .pass-input {
@@ -90,14 +91,14 @@
       background: #0b1120;
       border: 1px solid #475569;
       color: #fff;
-      font-size: 1.2rem;
-      font-weight: 800;
-      text-align: center;
-      letter-spacing: 3px;
-      padding: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 11px 12px;
       border-radius: 10px;
       outline: none;
       margin-bottom: 12px;
+      text-align: center;
+      letter-spacing: 3px;
     }
 
     .pass-input:focus {
@@ -156,12 +157,12 @@
     }
 
     .excel-title h1 {
-      font-size: 1.15rem;
+      font-size: 1.12rem;
       font-weight: 800;
     }
 
     .excel-title p {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: #cbd5e1;
     }
 
@@ -172,12 +173,25 @@
       flex-wrap: wrap;
     }
 
+    .autosave-pill {
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+      padding: 6px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
     .date-bar {
       display: flex;
       align-items: center;
       gap: 6px;
       background: rgba(15, 23, 42, 0.8);
-      padding: 7px 10px;
+      padding: 6px 10px;
       border-radius: 8px;
       border: 1px solid var(--grid-border);
     }
@@ -616,7 +630,6 @@
       color: #fda4af;
     }
 
-    /* Phone Responsive Tweaks */
     @media (max-width: 640px) {
       .summary-strip {
         grid-template-columns: 1fr 1fr;
@@ -624,11 +637,6 @@
       .btn-group .btn {
         flex: 1 1 45%;
         text-align: center;
-      }
-      .btn-save {
-        flex: 1 1 100% !important;
-        padding: 13px;
-        font-size: 0.95rem;
       }
     }
   </style>
@@ -650,7 +658,7 @@
     />
     <label class="remember-row">
       <input type="checkbox" id="rememberPass" checked />
-      Keep me unlocked on this phone/browser
+      Keep me unlocked on this phone/PC
     </label>
     <button class="btn btn-save" style="width:100%; padding:12px; font-size:0.95rem;" onclick="unlockApp()">
       Unlock Sheet
@@ -666,15 +674,16 @@
       <div class="excel-icon">XLS</div>
       <div>
         <h1>TikTok & Personal Split Sheet</h1>
-        <p>Swipe table sideways on phone • Food minuses from TikTok</p>
+        <p>Auto-saves in background + Manual Save Button • Food minuses from TikTok</p>
       </div>
     </div>
     <div class="ribbon-controls">
+      <span class="autosave-pill" id="autoSaveBadge">⚡ Auto-Save: ON</span>
       <div class="date-bar">
-        <span style="font-size:0.76rem; color:var(--muted);">📅</span>
-        <input type="date" id="sheetDate" />
+        <span style="font-size:0.76rem; color:var(--muted);">📅 Date:</span>
+        <input type="date" id="sheetDate" onchange="onDateSwitch()" />
       </div>
-      <button class="btn-small" onclick="changePassword()">🔑 Change Pass</button>
+      <button class="btn-small" onclick="changePassword()">🔑 Pass</button>
       <button class="btn-small" onclick="lockApp()">🔒 Lock</button>
     </div>
   </div>
@@ -684,7 +693,7 @@
     <div class="summary-cell">
       <div class="summary-label">1. TikTok Pool (£)</div>
       <div class="summary-value">
-        £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="recalc()" />
+        £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="recalc(true)" />
       </div>
       <div class="sub-note">Base (÷3): <strong id="baseSplitText" style="color:#fff;">£20.00</strong></div>
     </div>
@@ -770,23 +779,24 @@
     </table>
   </div>
 
-  <!-- Save & Export Bar -->
+  <!-- Action Bar with + Save Row to Permanent Log -->
   <div class="action-bar">
+    <span style="font-size:0.8rem; color:#6ee7b7; font-weight:700;">
+      ⚡ Auto-saves in background. Click <b style="color:#fff;">"+ Save Row to Permanent Log"</b> anytime to lock a snapshot!
+    </span>
     <div class="btn-group">
       <button class="btn btn-reset" onclick="zeroOutSheet()">Zero (£0)</button>
       <button class="btn btn-reset" onclick="resetDefault()">£60 Preset</button>
-      <button class="btn btn-reset" onclick="copySyncCode()">📲 Copy Sync</button>
-      <button class="btn btn-reset" onclick="pasteSyncCode()">📥 Paste Sync</button>
       <button class="btn btn-excel" onclick="exportToExcelCSV()">📊 Excel (.csv)</button>
-      <button class="btn btn-save" onclick="saveHistoryRow()">+ Save Row to Permanent Log</button>
+      <button class="btn btn-save" onclick="autoSaveCurrentDateRow(true)">+ Save Row to Permanent Log</button>
     </div>
   </div>
 
   <!-- All-Time Grand Totals Across All Saved Months -->
   <div class="alltime-panel">
     <div class="alltime-title">
-      <span>🌐 All-Time Grand Totals (Every Saved Log)</span>
-      <span id="allTimeCountBadge" style="font-size:0.75rem; color:#cbd5e1;">0 Saved Logs</span>
+      <span>🌐 All-Time Grand Totals (Every Logged Day Combined)</span>
+      <span id="allTimeCountBadge" style="font-size:0.75rem; color:#cbd5e1;">0 Logged Days</span>
     </div>
     <div class="alltime-grid">
       <div class="alltime-card">
@@ -831,8 +841,8 @@
   <div class="history-box">
     <div class="history-header">
       <div>
-        <h2 style="font-size:1rem;">Saved Monthly & Daily Excel Logs</h2>
-        <p style="font-size:0.75rem; color:var(--muted);">Swipe sideways on phone to view all columns</p>
+        <h2 style="font-size:1rem;">Auto-Saved & Permanent Monthly Logs</h2>
+        <p style="font-size:0.75rem; color:var(--muted);">Tap any saved date row to load and edit it live</p>
       </div>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <select id="monthFilter" onchange="renderHistory()" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:7px 10px; border-radius:6px; font-weight:700; font-size:14px;">
@@ -864,13 +874,8 @@
 </div>
 
 <script>
-  // ==========================================
-  // CHANGE YOUR DEFAULT GITHUB PASSWORD HERE:
-  // ==========================================
-  const DEFAULT_PASSWORD = "1234";
-
-  const STORAGE_KEY = 'tiktok_excel_logs_v3';
-  const PASS_KEY = 'tiktok_custom_pass_v1';
+  const PASS_HASH_KEY = 'tiktok_pass_sha256_v1';
+  const STORAGE_KEY = 'tiktok_excel_autosave_logs_v4';
   const UNLOCK_KEY = 'tiktok_unlocked_session_v1';
 
   const presetRows = [
@@ -882,13 +887,33 @@
   let rows = JSON.parse(JSON.stringify(presetRows));
   let expenses = [{ note: '', amount: 0 }];
 
-  function getActivePassword() {
-    return localStorage.getItem(PASS_KEY) || DEFAULT_PASSWORD;
+  async function sha256Hex(text) {
+    const msgBuffer = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  function unlockApp() {
-    const entered = document.getElementById('passInput').value;
-    if (entered === getActivePassword()) {
+  async function unlockApp() {
+    const entered = document.getElementById('passInput').value.trim();
+    if (!entered) {
+      document.getElementById('lockError').textContent = 'Please enter a password.';
+      return;
+    }
+    const savedHash = localStorage.getItem(PASS_HASH_KEY);
+    const enteredHash = await sha256Hex(entered);
+
+    if (!savedHash) {
+      localStorage.setItem(PASS_HASH_KEY, enteredHash);
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('lockError').textContent = '';
+      if (document.getElementById('rememberPass').checked) {
+        localStorage.setItem(UNLOCK_KEY, 'true');
+      }
+      return;
+    }
+
+    if (enteredHash === savedHash) {
       document.getElementById('lockScreen').style.display = 'none';
       document.getElementById('lockError').textContent = '';
       if (document.getElementById('rememberPass').checked) {
@@ -905,16 +930,17 @@
     document.getElementById('lockScreen').style.display = 'flex';
   }
 
-  function changePassword() {
+  async function changePassword() {
     const current = prompt('Enter current password:');
     if (current === null) return;
-    if (current !== getActivePassword()) {
+    const savedHash = localStorage.getItem(PASS_HASH_KEY);
+    if (savedHash && (await sha256Hex(current)) !== savedHash) {
       alert('Wrong current password!');
       return;
     }
-    const nextPass = prompt('Enter new password for this device:');
+    const nextPass = prompt('Enter new password:');
     if (nextPass && nextPass.trim().length > 0) {
-      localStorage.setItem(PASS_KEY, nextPass.trim());
+      localStorage.setItem(PASS_HASH_KEY, await sha256Hex(nextPass.trim()));
       alert('Password updated!');
     }
   }
@@ -925,10 +951,46 @@
     }
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById('sheetDate').value = today;
+    document.getElementById('activeDateLabel').textContent = today;
+
+    const existingLogs = getLogs();
+    const todayLog = existingLogs.find(l => l.date === today);
+    if (todayLog) {
+      loadEntryIntoSheet(todayLog);
+    } else if (existingLogs.length > 0) {
+      loadEntryIntoSheet(existingLogs[0]);
+    } else {
+      renderSheet();
+      renderExpenses();
+      recalc(true);
+    }
+  }
+
+  function loadEntryIntoSheet(entry) {
+    document.getElementById('sheetDate').value = entry.date;
+    document.getElementById('activeDateLabel').textContent = entry.date;
+    document.getElementById('totalPool').value = entry.pool;
+    rows = JSON.parse(JSON.stringify(entry.snapshot));
+    expenses = (entry.expenseItems && entry.expenseItems.length > 0)
+      ? JSON.parse(JSON.stringify(entry.expenseItems))
+      : [{ note: '', amount: 0 }];
     renderSheet();
     renderExpenses();
-    recalc();
+    recalc(false);
     renderHistory();
+  }
+
+  function onDateSwitch() {
+    const chosenDate = document.getElementById('sheetDate').value;
+    if (!chosenDate) return;
+    document.getElementById('activeDateLabel').textContent = chosenDate;
+
+    const existing = getLogs().find(l => l.date === chosenDate);
+    if (existing) {
+      loadEntryIntoSheet(existing);
+    } else {
+      recalc(true);
+    }
   }
 
   function renderSheet() {
@@ -966,7 +1028,7 @@
             class="cell-input-wide"
             id="expNote_${idx}"
             placeholder="Note (e.g. Food, Peppy's, drinks...)"
-            value="${exp.note.replace(/"/g, '&quot;')}"
+            value="${(exp.note || '').replace(/"/g, '&quot;')}"
             oninput="updateExpense(${idx})"
           />
         </td>
@@ -976,7 +1038,7 @@
             type="number"
             class="cell-input"
             id="expAmt_${idx}"
-            value="${exp.amount}"
+            value="${exp.amount || 0}"
             step="0.01"
             min="0"
             oninput="updateExpense(${idx})"
@@ -998,29 +1060,29 @@
   function addExpenseRow() {
     expenses.push({ note: '', amount: 0 });
     renderExpenses();
-    recalc();
+    recalc(true);
   }
 
   function removeExpenseRow(idx) {
     expenses.splice(idx, 1);
     renderExpenses();
-    recalc();
+    recalc(true);
   }
 
   function updateExpense(idx) {
     expenses[idx].note = document.getElementById(`expNote_${idx}`).value;
     expenses[idx].amount = Math.max(0, parseFloat(document.getElementById(`expAmt_${idx}`).value) || 0);
-    recalc();
+    recalc(true);
   }
 
   function updateCell(i) {
     rows[i].raisePct = parseFloat(document.getElementById(`raise_${i}`).value) || 0;
     rows[i].withdrew = parseFloat(document.getElementById(`withdrew_${i}`).value) || 0;
     rows[i].fee = parseFloat(document.getElementById(`fee_${i}`).value) || 0;
-    recalc();
+    recalc(true);
   }
 
-  function recalc() {
+  function recalc(shouldAutoSave = false) {
     const pool = parseFloat(document.getElementById('totalPool').value) || 0;
     const base = pool / 3;
     document.getElementById('baseSplitText').textContent = `£${base.toFixed(2)}`;
@@ -1067,7 +1129,7 @@
       totalExpenses += amt;
       const deductCell = document.getElementById(`expDeductDisplay_${idx}`);
       if (deductCell) deductCell.textContent = `-£${amt.toFixed(2)}`;
-      if (amt > 0 || exp.note.trim() !== '') {
+      if (amt > 0 || (exp.note && exp.note.trim() !== '')) {
         activeNotes.push(`${exp.note.trim() || 'Food'}: -£${amt.toFixed(2)}`);
       }
     });
@@ -1097,6 +1159,10 @@
     document.getElementById('sumPersonal').textContent = `£${totalPersonal.toFixed(2)}`;
     document.getElementById('sumTikTok').textContent = `£${cashLeftInTikTok.toFixed(2)} in TikTok`;
     document.getElementById('sumAllTogetherCell').textContent = `Together: £${allTogetherRealCash.toFixed(2)}`;
+
+    if (shouldAutoSave) {
+      autoSaveCurrentDateRow(false);
+    }
   }
 
   function getLogs() {
@@ -1112,8 +1178,8 @@
     renderHistory();
   }
 
-  function saveHistoryRow() {
-    recalc();
+  function autoSaveCurrentDateRow(showAlert = false) {
+    recalc(false);
     const date = document.getElementById('sheetDate').value || new Date().toISOString().slice(0, 10);
     const pool = parseFloat(document.getElementById('totalPool').value) || 0;
     const totalWithdrawn = rows.reduce((s, r) => s + r.withdrew, 0);
@@ -1127,8 +1193,11 @@
     const leftInTikTok = pool - totalWithdrawn - totalExpenses;
     const togetherCash = leftInTikTok + totalPersonal;
 
+    const logs = getLogs();
+    const existingIdx = logs.findIndex(l => l.date === date);
+
     const entry = {
-      id: Date.now(),
+      id: existingIdx >= 0 ? logs[existingIdx].id : Date.now(),
       date,
       monthKey: date.slice(0, 7),
       pool,
@@ -1142,33 +1211,18 @@
       snapshot: JSON.parse(JSON.stringify(rows))
     };
 
-    const logs = getLogs();
-    logs.unshift(entry);
-    saveLogs(logs);
-  }
-
-  // Phone <-> PC Quick Sync Functions
-  function copySyncCode() {
-    const data = JSON.stringify(getLogs());
-    navigator.clipboard.writeText(data).then(() => {
-      alert('Sync code copied! Open this site on your phone/PC and tap "Paste Sync" to load all saved logs.');
-    }).catch(() => {
-      prompt('Copy this sync code:', data);
-    });
-  }
-
-  function pasteSyncCode() {
-    const pasted = prompt('Paste the Sync Code from your other device:');
-    if (!pasted) return;
-    try {
-      const parsed = JSON.parse(pasted);
-      if (Array.isArray(parsed)) {
-        saveLogs(parsed);
-        alert(`Synced ${parsed.length} saved log(s) successfully!`);
-      }
-    } catch {
-      alert('Invalid sync code.');
+    if (existingIdx >= 0) {
+      logs[existingIdx] = entry;
+    } else {
+      logs.unshift(entry);
     }
+
+    logs.sort((a, b) => b.date.localeCompare(a.date));
+    saveLogs(logs);
+
+    const badge = document.getElementById('autoSaveBadge');
+    badge.textContent = showAlert ? '✅ Row Saved to Log!' : '⚡ Auto-Saved!';
+    setTimeout(() => { badge.textContent = '⚡ Auto-Save: ON'; }, 1500);
   }
 
   function deleteRow(id) {
@@ -1221,7 +1275,7 @@
   }
 
   function updateAllTimeTotals(logs) {
-    document.getElementById('allTimeCountBadge').textContent = `${logs.length} Saved Log(s)`;
+    document.getElementById('allTimeCountBadge').textContent = `${logs.length} Logged Day(s)`;
 
     let gPool = 0, gWithdrawn = 0, gFees = 0, gExpenses = 0, gTikTok = 0, gPersonal = 0, gTogether = 0;
     const memberTotals = [
@@ -1282,7 +1336,7 @@
     const tbody = document.getElementById('historyBody');
 
     if (visible.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:24px;">No saved logs yet. Tap <b>"+ Save Row to Permanent Log"</b> above to save your first entry.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:24px;">Type any number above or click "+ Save Row to Permanent Log" to save!</td></tr>`;
       return;
     }
 
@@ -1325,7 +1379,7 @@
       html += `
         <tr>
           <td colspan="10" class="month-banner">
-            📂 ${formatMonth(monthKey)} (${monthLogs.length}) | Food: -£${mExpenses.toFixed(2)} | Month Together: £${mTogether.toFixed(2)}
+            📂 ${formatMonth(monthKey)} (${monthLogs.length} Days) | Food: -£${mExpenses.toFixed(2)} | Month Together: £${mTogether.toFixed(2)}
           </td>
         </tr>
       `;
@@ -1337,7 +1391,7 @@
         const itemTogether = item.leftInTikTok + itemPersonal;
 
         html += `
-          <tr>
+          <tr style="cursor:pointer;" onclick="loadEntryIntoSheetByDate('${item.date}')">
             <td style="text-align:left; font-weight:700; white-space:nowrap;">📅 ${item.date}</td>
             <td style="font-weight:700;">£${item.pool.toFixed(2)}</td>
             <td>
@@ -1350,7 +1404,9 @@
             <td class="saved-member-cell">${formatMemberHistoryCell(wasi)}</td>
             <td class="saved-member-cell">${formatMemberHistoryCell(rayyan)}</td>
             <td class="saved-member-cell">${formatMemberHistoryCell(wali)}</td>
-            <td style="text-align:center;"><button class="btn-del" onclick="deleteRow(${item.id})">Del</button></td>
+            <td style="text-align:center;" onclick="event.stopPropagation();">
+              <button class="btn-del" onclick="deleteRow(${item.id})">Del</button>
+            </td>
           </tr>
         `;
       });
@@ -1380,6 +1436,11 @@
     tbody.innerHTML = html;
   }
 
+  function loadEntryIntoSheetByDate(dateStr) {
+    const found = getLogs().find(l => l.date === dateStr);
+    if (found) loadEntryIntoSheet(found);
+  }
+
   function csvCell(val) {
     const str = String(val ?? '');
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -1389,7 +1450,7 @@
   }
 
   function exportToExcelCSV() {
-    recalc();
+    recalc(false);
     const csvRows = [];
     const currentPool = parseFloat(document.getElementById('totalPool').value) || 0;
     const currentDate = document.getElementById('sheetDate').value || new Date().toISOString().slice(0, 10);
@@ -1432,7 +1493,7 @@
     expenses = [{ note: '', amount: 0 }];
     renderSheet();
     renderExpenses();
-    recalc();
+    recalc(true);
   }
 
   function resetDefault() {
@@ -1441,7 +1502,7 @@
     expenses = [{ note: '', amount: 0 }];
     renderSheet();
     renderExpenses();
-    recalc();
+    recalc(true);
   }
 
   init();

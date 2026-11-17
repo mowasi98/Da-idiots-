@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TikTok Split" />
+  <title>TikTok & Personal Account Excel Tracker (Auto-Save & Sync)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --sheet-bg: #1e293b;
+      --grid-border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --excel-green: #10b981;
+      --tiktok-cyan: #06b6d4;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --purple: #a855f7;
+      --cell-edit: #0b1120;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 14px 10px 70px;
+      min-height: 100vh;
+    }
+
+    /* PASSWORD LOCK SCREEN & SYNC MODAL */
+    #lockScreen, #syncModal {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(30, 41, 59, 0.96), rgba(9, 13, 22, 0.98) 70%);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    #syncModal {
+      display: none;
+    }
+
+    .lock-card {
+      background: #162032;
+      border: 1px solid var(--grid-border);
+      border-radius: 16px;
+      padding: 26px 22px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .lock-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: var(--excel-green);
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+    }
+
+    .lock-card h2 {
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+    }
+
+    .lock-card p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .pass-input, .sync-field {
+      width: 100%;
+      background: #0b1120;
+      border: 1px solid #475569;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 11px 12px;
+      border-radius: 10px;
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    .pass-input {
+      text-align: center;
+      letter-spacing: 3px;
+      font-size: 1.15rem;
+    }
+
+    .pass-input:focus, .sync-field:focus {
+      border-color: var(--excel-green);
+    }
+
+    .remember-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+    }
+
+    .lock-err {
+      color: var(--rose);
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-top: 10px;
+      min-height: 18px;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Top Excel Ribbon Bar */
+    .excel-ribbon {
+      background: linear-gradient(135deg, #065f46, #0f172a 75%);
+      border: 1px solid var(--grid-border);
+      border-radius: 12px 12px 0 0;
+      padding: 14px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .excel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .excel-icon {
+      background: var(--excel-green);
+      color: #052e16;
+      font-weight: 900;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .excel-title h1 {
+      font-size: 1.12rem;
+      font-weight: 800;
+    }
+
+    .excel-title p {
+      font-size: 0.76rem;
+      color: #cbd5e1;
+    }
+
+    .ribbon-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .autosave-pill {
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+      padding: 6px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .date-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--grid-border);
+    }
+
+    .date-bar input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      outline: none;
+    }
+
+    /* Account Summary Boxes */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      background: #162032;
+      border-left: 1px solid var(--grid-border);
+      border-right: 1px solid var(--grid-border);
+      border-bottom: 1px solid var(--grid-border);
+    }
+
+    .summary-cell {
+      padding: 12px 14px;
+      border-right: 1px solid var(--grid-border);
+      border-bottom: 1px solid var(--grid-border);
+    }
+
+    .summary-cell:last-child {
+      background: rgba(168, 85, 247, 0.08);
+    }
+
+    .summary-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .summary-value {
+      font-size: 1.3rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pool-input {
+      width: 95px;
+      background: var(--cell-edit);
+      border: 1px solid var(--tiktok-cyan);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .sub-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* Main Excel Table */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--sheet-bg);
+      border: 1px solid var(--grid-border);
+      border-top: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 880px;
+    }
+
+    th, td {
+      border: 1px solid var(--grid-border);
+      padding: 9px 10px;
+      text-align: right;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: #0f172a;
+      color: #cbd5e1;
+      font-weight: 700;
+      font-size: 0.73rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    /* Sticky Member Column for Phone Swiping */
+    td.name-cell, th.name-col {
+      text-align: left;
+      font-weight: 800;
+      color: #fff;
+      position: sticky;
+      left: 0;
+      background: #162032;
+      z-index: 2;
+    }
+
+    th.name-col {
+      background: #0f172a;
+      z-index: 3;
+    }
+
+    .col-letter {
+      display: block;
+      font-size: 0.65rem;
+      color: #64748b;
+      margin-bottom: 2px;
+    }
+
+    .row-num {
+      background: #0f172a;
+      color: #64748b;
+      text-align: center;
+      width: 34px;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    /* Editable Cells - 16px prevents phone auto-zoom */
+    .cell-input {
+      width: 78px;
+      background: var(--cell-edit);
+      border: 1px solid #475569;
+      color: #fff;
+      padding: 6px 7px;
+      border-radius: 6px;
+      text-align: right;
+      font-weight: 700;
+      font-size: 16px;
+      outline: none;
+    }
+
+    .cell-input-wide {
+      width: 100%;
+      min-width: 190px;
+      background: var(--cell-edit);
+      border: 1px solid #475569;
+      color: #fff;
+      padding: 7px 10px;
+      border-radius: 6px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 16px;
+      outline: none;
+    }
+
+    .cell-input:focus, .cell-input-wide:focus {
+      border-color: var(--excel-green);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+    }
+
+    /* Expense Section Styling */
+    .expense-banner-row td {
+      background: rgba(244, 63, 94, 0.12);
+      color: #fda4af;
+      text-align: left;
+      font-weight: 800;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+    }
+
+    .expense-row td {
+      background: rgba(15, 23, 42, 0.45);
+    }
+
+    /* Highlighted Columns */
+    .personal-col {
+      background: rgba(59, 130, 246, 0.08);
+      color: #93c5fd;
+      font-weight: 800;
+    }
+
+    .tiktok-col {
+      background: rgba(16, 185, 129, 0.1);
+      color: #6ee7b7;
+      font-weight: 800;
+    }
+
+    .expense-col {
+      background: rgba(244, 63, 94, 0.1);
+      color: #fda4af;
+      font-weight: 800;
+    }
+
+    .together-col {
+      background: rgba(168, 85, 247, 0.12);
+      color: #d8b4fe;
+      font-weight: 800;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.73rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-kept {
+      background: rgba(6, 182, 212, 0.15);
+      color: #67e8f9;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .status-withdrew {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .status-expense {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .totals-row td {
+      background: #131c2e;
+      font-weight: 800;
+      border-top: 2px solid #64748b;
+    }
+
+    /* Action Bar */
+    .action-bar {
+      background: #162032;
+      border: 1px solid var(--grid-border);
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      padding: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      cursor: pointer;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.84rem;
+      transition: opacity 0.15s;
+    }
+
+    .btn-save {
+      background: var(--excel-green);
+      color: #052e16;
+    }
+
+    .btn-excel {
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      border: 1px solid #38bdf8;
+    }
+
+    .btn-sync {
+      background: rgba(168, 85, 247, 0.2);
+      color: #e9d5ff;
+      border: 1px solid rgba(168, 85, 247, 0.5);
+    }
+
+    .btn-expense-add {
+      background: rgba(244, 63, 94, 0.18);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .btn-reset {
+      background: #334155;
+      color: #f8fafc;
+    }
+
+    .btn-small {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      padding: 7px 10px;
+      font-size: 0.76rem;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .btn-del {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      border-radius: 5px;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      cursor: pointer;
+    }
+
+    /* All-Time Grand Totals Panel */
+    .alltime-panel {
+      background: linear-gradient(135deg, #1e1b4b, #0f172a 85%);
+      border: 1px solid #4338ca;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+
+    .alltime-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #c4b5fd;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .alltime-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 10px;
+    }
+
+    .alltime-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid #312e81;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .alltime-card .lbl {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .alltime-card .val {
+      font-size: 1.12rem;
+      font-weight: 800;
+      margin-top: 3px;
+    }
+
+    .alltime-card .sub {
+      font-size: 0.7rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    /* History Sheet Section */
+    .history-box {
+      background: var(--sheet-bg);
+      border: 1px solid var(--grid-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .history-header {
+      background: #0f172a;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--grid-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .month-banner {
+      background: #162032;
+      color: var(--tiktok-cyan);
+      font-weight: 800;
+      text-align: left;
+      padding: 9px 12px;
+      font-size: 0.83rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .month-total-row td {
+      background: rgba(16, 185, 129, 0.14);
+      border-top: 2px solid var(--excel-green);
+      border-bottom: 2px solid var(--excel-green);
+      font-weight: 800;
+      color: #ecfdf5;
+    }
+
+    .saved-member-cell {
+      text-align: left;
+      font-size: 0.78rem;
+      line-height: 1.4;
+      background: rgba(15, 23, 42, 0.35);
+    }
+
+    .saved-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .tag-raise {
+      background: rgba(6, 182, 212, 0.18);
+      color: #67e8f9;
+    }
+
+    .tag-fee {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fda4af;
+    }
+
+    @media (max-width: 640px) {
+      .summary-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+      .btn-group .btn {
+        flex: 1 1 45%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- PASSWORD LOCK OVERLAY -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-badge">🔒</div>
+    <h2>TikTok Split Sheet</h2>
+    <p>Enter your password to unlock (First time on a device sets your password & encryption key)</p>
+    <input
+      type="password"
+      id="passInput"
+      class="pass-input"
+      placeholder="••••"
+      onkeydown="if(event.key==='Enter') unlockApp()"
+    />
+    <label class="remember-row">
+      <input type="checkbox" id="rememberPass" checked />
+      Keep me unlocked on this phone/PC
+    </label>
+    <button class="btn btn-save" style="width:100%; padding:12px; font-size:0.95rem;" onclick="unlockApp()">
+      Unlock Sheet
+    </button>
+    <div class="lock-err" id="lockError"></div>
+  </div>
+</div>
+
+<!-- GITHUB CLOUD AUTO-SYNC MODAL -->
+<div id="syncModal">
+  <div class="lock-card" style="max-width:440px; text-align:left;">
+    <h2 style="text-align:center;">☁️ GitHub PC ↔ Phone Auto-Sync</h2>
+    <p style="text-align:center;">
+      Connect your GitHub repository once so every edit on your phone automatically syncs to your PC (and vice versa).
+    </p>
+    <label style="font-size:0.75rem; color:var(--muted); font-weight:700;">1. GitHub Username / Repo Name</label>
+    <input type="text" id="ghRepoInput" class="sync-field" placeholder="e.g. wasi/tiktok-splits" />
+
+    <label style="font-size:0.75rem; color:var(--muted); font-weight:700;">2. GitHub Personal Access Token (with repo access)</label>
+    <input type="password" id="ghTokenInput" class="sync-field" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
+
+    <div style="display:flex; gap:8px; margin-top:6px;">
+      <button class="btn btn-save" style="flex:1;" onclick="saveGitHubConfig()">Enable Auto-Sync</button>
+      <button class="btn btn-reset" onclick="closeSyncModal()">Close</button>
+    </div>
+    <div style="margin-top:10px; display:flex; justify-content:space-between;">
+      <button class="btn-small" onclick="pullFromGitHub(true)">⬇️ Force Pull Now</button>
+      <button class="btn-small" onclick="disconnectGitHub()">Disconnect</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Top Excel Header -->
+  <div class="excel-ribbon">
+    <div class="excel-title">
+      <div class="excel-icon">XLS</div>
+      <div>
+        <h1>TikTok & Personal Split Sheet</h1>
+        <p>Auto-saves every change to the selected date • Food minuses from TikTok</p>
+      </div>
+    </div>
+    <div class="ribbon-controls">
+      <span class="autosave-pill" id="autoSaveBadge">⚡ Auto-Save: ON</span>
+      <div class="date-bar">
+        <span style="font-size:0.76rem; color:var(--muted);">📅 Date:</span>
+        <input type="date" id="sheetDate" onchange="onDateSwitch()" />
+      </div>
+      <button class="btn-small" id="cloudSyncBtn" onclick="openSyncModal()">☁️ GitHub Sync: Setup</button>
+      <button class="btn-small" onclick="changePassword()">🔑 Pass</button>
+      <button class="btn-small" onclick="lockApp()">🔒 Lock</button>
+    </div>
+  </div>
+
+  <!-- 6 Top Account Balances -->
+  <div class="summary-strip">
+    <div class="summary-cell">
+      <div class="summary-label">1. TikTok Pool (£)</div>
+      <div class="summary-value">
+        £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="recalc(true)" />
+      </div>
+      <div class="sub-note">Base (÷3): <strong id="baseSplitText" style="color:#fff;">£20.00</strong></div>
+    </div>
+
+    <div class="summary-cell">
+      <div class="summary-label">2. Withdrawn</div>
+      <div class="summary-value" style="color:var(--amber);" id="topWithdrawn">£15.00</div>
+      <div class="sub-note">Taken by members</div>
+    </div>
+
+    <div class="summary-cell">
+      <div class="summary-label" style="color:#fda4af;">3. Food / Expenses</div>
+      <div class="summary-value" style="color:var(--rose);" id="topExpenses">-£0.00</div>
+      <div class="sub-note" id="topExpenseNotePreview">No expenses yet</div>
+    </div>
+
+    <div class="summary-cell">
+      <div class="summary-label">4. Still in TikTok</div>
+      <div class="summary-value" style="color:var(--excel-green);" id="topTikTokLeft">£45.00</div>
+      <div class="sub-note">Pool − Took − Food</div>
+    </div>
+
+    <div class="summary-cell">
+      <div class="summary-label">5. Personal (Net)</div>
+      <div class="summary-value" style="color:#60a5fa;" id="topPersonalNet">£13.00</div>
+      <div class="sub-note">Fees: <strong id="topFeesPaid" style="color:#fda4af;">£2.00</strong></div>
+    </div>
+
+    <div class="summary-cell">
+      <div class="summary-label" style="color:#d8b4fe;">6. Total Together</div>
+      <div class="summary-value" style="color:#d8b4fe;" id="topAllTogether">£58.00</div>
+      <div class="sub-note" id="topTogetherBreakdown">TikTok (£45) + Got (£13)</div>
+    </div>
+  </div>
+
+  <!-- Excel Spreadsheet Table -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th class="row-num">#</th>
+          <th class="name-col"><span class="col-letter">A</span>Member / Item</th>
+          <th><span class="col-letter">B</span>Base (÷3)</th>
+          <th><span class="col-letter">C</span>Raise %</th>
+          <th><span class="col-letter">D</span>Total Share</th>
+          <th><span class="col-letter">E</span>Withdrew / Spent</th>
+          <th><span class="col-letter">F</span>Fee (£)</th>
+          <th style="color:#93c5fd;"><span class="col-letter">G</span>Personal (Got)</th>
+          <th style="color:#6ee7b7;"><span class="col-letter">H</span>Stays in TikTok</th>
+          <th style="text-align:center;"><span class="col-letter">I</span>Status</th>
+        </tr>
+      </thead>
+      <tbody id="sheetBody"></tbody>
+
+      <!-- Food & Shared Account Expenses Section -->
+      <tbody>
+        <tr class="expense-banner-row">
+          <td class="row-num">🍔</td>
+          <td colspan="9">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <span>TikTok Account Expenses (Food, Drinks, Props — Subtracted From TikTok)</span>
+              <button class="btn-expense-add" onclick="addExpenseRow()">+ Add Food / Expense Line</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+      <tbody id="expenseBody"></tbody>
+
+      <tfoot>
+        <tr class="totals-row">
+          <td class="row-num">∑</td>
+          <td class="name-cell">SHEET TOTALS</td>
+          <td id="sumBase">£60.00</td>
+          <td id="sumRaiseInfo" style="color:var(--tiktok-cyan);">+£10.00</td>
+          <td id="sumEntitled">£70.00</td>
+          <td id="sumWithdrawn" style="color:var(--amber);">£15.00</td>
+          <td id="sumFees" style="color:#fda4af;">£2.00</td>
+          <td id="sumPersonal" class="personal-col">£13.00</td>
+          <td id="sumTikTok" class="tiktok-col">£45.00 in TikTok</td>
+          <td id="sumAllTogetherCell" class="together-col" style="text-align:center;">Together: £58.00</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="action-bar">
+    <span style="font-size:0.8rem; color:#6ee7b7; font-weight:700;">
+      ✅ Everything you type above saves automatically to the selected date (<span id="activeDateLabel">today</span>). Change the date picker at the top to log a different day!
+    </span>
+    <div class="btn-group">
+      <button class="btn btn-reset" onclick="zeroOutSheet()">Zero Current Day (£0)</button>
+      <button class="btn btn-reset" onclick="resetDefault()">£60 Preset</button>
+      <button class="btn btn-sync" onclick="openSyncModal()">☁️ Auto-Sync PC & Phone</button>
+      <button class="btn btn-excel" onclick="exportToExcelCSV()">📊 Export Excel (.csv)</button>
+    </div>
+  </div>
+
+  <!-- All-Time Grand Totals Across All Saved Months -->
+  <div class="alltime-panel">
+    <div class="alltime-title">
+      <span>🌐 All-Time Grand Totals (Every Logged Day Combined)</span>
+      <span id="allTimeCountBadge" style="font-size:0.75rem; color:#cbd5e1;">0 Logged Days</span>
+    </div>
+    <div class="alltime-grid">
+      <div class="alltime-card">
+        <div class="lbl">All-Time Together</div>
+        <div class="val" style="color:#d8b4fe;" id="grandTogether">£0.00</div>
+        <div class="sub" id="grandPoolSub">Pool: £0.00</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Left in TikTok</div>
+        <div class="val" style="color:var(--excel-green);" id="grandTikTok">£0.00</div>
+        <div class="sub" id="grandWithdrawnSub">Took: £0.00</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Food / Expenses</div>
+        <div class="val" style="color:var(--rose);" id="grandExpenses">-£0.00</div>
+        <div class="sub">From TikTok</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Personal (Got)</div>
+        <div class="val" style="color:#60a5fa;" id="grandPersonal">£0.00</div>
+        <div class="sub" id="grandFeesSub">Fees: £0.00</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Wasi Total</div>
+        <div class="val" style="color:#fff;" id="grandWasi">£0.00</div>
+        <div class="sub" id="grandWasiSub">Got £0 | TikTok £0</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Rayyan Total</div>
+        <div class="val" style="color:#fff;" id="grandRayyan">£0.00</div>
+        <div class="sub" id="grandRayyanSub">Got £0 | TikTok £0</div>
+      </div>
+      <div class="alltime-card">
+        <div class="lbl">Wali Total</div>
+        <div class="val" style="color:#fff;" id="grandWali">£0.00</div>
+        <div class="sub" id="grandWaliSub">Got £0 | TikTok £0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Permanent Multi-Month & Multi-Day Excel Log -->
+  <div class="history-box">
+    <div class="history-header">
+      <div>
+        <h2 style="font-size:1rem;">Auto-Saved Monthly & Daily Excel Logs</h2>
+        <p style="font-size:0.75rem; color:var(--muted);">Tap any saved date row to load and edit it live</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <select id="monthFilter" onchange="renderHistory()" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:7px 10px; border-radius:6px; font-weight:700; font-size:14px;">
+          <option value="ALL">All Months</option>
+        </select>
+        <button class="btn-del" onclick="clearAllHistory()">Clear All</button>
+      </div>
+    </div>
+    <div class="table-wrapper" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left;">Date / Month</th>
+            <th>TikTok Pool</th>
+            <th>Withdrawn & Fees</th>
+            <th style="color:#fda4af; text-align:left;">Food / Expenses</th>
+            <th style="color:#6ee7b7;">Left in TikTok</th>
+            <th style="color:#d8b4fe;">Total Together</th>
+            <th style="text-align:left;">Wasi</th>
+            <th style="text-align:left;">Rayyan</th>
+            <th style="text-align:left;">Wali</th>
+            <th style="text-align:center;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // ZERO-LEAK SECURITY (SHA-256 + AES-256 ENCRYPTION)
+  // No password is stored in this file!
+  // ==========================================
+  const PASS_HASH_KEY = 'tiktok_pass_sha256_v1';
+
+  async function sha256Hex(text) {
+    const msgBuffer = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function deriveAesKey(password, saltBytes) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function encryptPayload(plainText, password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveAesKey(password, salt);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      new TextEncoder().encode(plainText)
+    );
+    return JSON.stringify({
+      encrypted: true,
+      salt: btoa(String.fromCharCode(...salt)),
+      iv: btoa(String.fromCharCode(...iv)),
+      cipher: btoa(String.fromCharCode(...new Uint8Array(encrypted)))
+    }, null, 2);
+  }
+
+  async function decryptPayload(jsonStr, password) {
+    const obj = JSON.parse(jsonStr);
+    if (!obj.encrypted) return obj; // backwards compatible if unencrypted
+    const salt = Uint8Array.from(atob(obj.salt), c => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(obj.iv), c => c.charCodeAt(0));
+    const cipher = Uint8Array.from(atob(obj.cipher), c => c.charCodeAt(0));
+    const key = await deriveAesKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  }
+
+  const STORAGE_KEY = 'tiktok_excel_autosave_logs_v4';
+  const PASS_KEY = 'tiktok_custom_pass_v1';
+  const UNLOCK_KEY = 'tiktok_unlocked_session_v1';
+  const GH_CONFIG_KEY = 'tiktok_gh_sync_config_v1';
+
+  const presetRows = [
+    { name: 'Wasi', raisePct: 0, withdrew: 0, fee: 0 },
+    { name: 'Rayyan', raisePct: 50, withdrew: 15, fee: 2 },
+    { name: 'Wali', raisePct: 0, withdrew: 0, fee: 0 }
+  ];
+
+  let rows = JSON.parse(JSON.stringify(presetRows));
+  let expenses = [{ note: '', amount: 0 }];
+  let syncTimeout = null;
+
+  let sessionPassword = sessionStorage.getItem('tiktok_session_pass') || '';
+
+  async function unlockApp() {
+    const entered = document.getElementById('passInput').value.trim();
+    if (!entered) {
+      document.getElementById('lockError').textContent = 'Please enter a password.';
+      return;
+    }
+    const savedHash = localStorage.getItem(PASS_HASH_KEY);
+    const enteredHash = await sha256Hex(entered);
+
+    if (!savedHash) {
+      // First time setup on this device: set the password hash
+      localStorage.setItem(PASS_HASH_KEY, enteredHash);
+      sessionPassword = entered;
+      sessionStorage.setItem('tiktok_session_pass', entered);
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('lockError').textContent = '';
+      if (document.getElementById('rememberPass').checked) {
+        localStorage.setItem(UNLOCK_KEY, 'true');
+      }
+      await pullFromGitHub(false);
+      return;
+    }
+
+    if (enteredHash === savedHash) {
+      sessionPassword = entered;
+      sessionStorage.setItem('tiktok_session_pass', entered);
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('lockError').textContent = '';
+      if (document.getElementById('rememberPass').checked) {
+        localStorage.setItem(UNLOCK_KEY, 'true');
+      }
+      await pullFromGitHub(false);
+    } else {
+      document.getElementById('lockError').textContent = 'Wrong password! Try again.';
+    }
+  }
+
+  function lockApp() {
+    localStorage.removeItem(UNLOCK_KEY);
+    sessionStorage.removeItem('tiktok_session_pass');
+    sessionPassword = '';
+    document.getElementById('passInput').value = '';
+    document.getElementById('lockScreen').style.display = 'flex';
+  }
+
+  async function changePassword() {
+    const current = prompt('Enter current password:');
+    if (current === null) return;
+    const savedHash = localStorage.getItem(PASS_HASH_KEY);
+    if (savedHash && (await sha256Hex(current)) !== savedHash) {
+      alert('Wrong current password!');
+      return;
+    }
+    const nextPass = prompt('Enter new password (used to lock & encrypt GitHub data):');
+    if (nextPass && nextPass.trim().length > 0) {
+      localStorage.setItem(PASS_HASH_KEY, await sha256Hex(nextPass.trim()));
+      sessionPassword = nextPass.trim();
+      sessionStorage.setItem('tiktok_session_pass', sessionPassword);
+      await pushToGitHub();
+      alert('Password updated and GitHub data re-encrypted!');
+    }
+  }
+
+  async function init() {
+    if (localStorage.getItem(UNLOCK_KEY) === 'true') {
+      document.getElementById('lockScreen').style.display = 'none';
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('sheetDate').value = today;
+    document.getElementById('activeDateLabel').textContent = today;
+
+    updateCloudButtonState();
+
+    // If GitHub Cloud Sync is configured, pull latest logs from GitHub automatically on open
+    await pullFromGitHub(false);
+
+    const existingLogs = getLogs();
+    const todayLog = existingLogs.find(l => l.date === today);
+    if (todayLog) {
+      loadEntryIntoSheet(todayLog);
+    } else if (existingLogs.length > 0) {
+      loadEntryIntoSheet(existingLogs[0]);
+    } else {
+      renderSheet();
+      renderExpenses();
+      recalc(true);
+    }
+  }
+
+  function loadEntryIntoSheet(entry) {
+    document.getElementById('sheetDate').value = entry.date;
+    document.getElementById('activeDateLabel').textContent = entry.date;
+    document.getElementById('totalPool').value = entry.pool;
+    rows = JSON.parse(JSON.stringify(entry.snapshot));
+    expenses = (entry.expenseItems && entry.expenseItems.length > 0)
+      ? JSON.parse(JSON.stringify(entry.expenseItems))
+      : [{ note: '', amount: 0 }];
+    renderSheet();
+    renderExpenses();
+    recalc(false);
+    renderHistory();
+  }
+
+  function onDateSwitch() {
+    const chosenDate = document.getElementById('sheetDate').value;
+    if (!chosenDate) return;
+    document.getElementById('activeDateLabel').textContent = chosenDate;
+
+    const existing = getLogs().find(l => l.date === chosenDate);
+    if (existing) {
+      loadEntryIntoSheet(existing);
+    } else {
+      recalc(true);
+    }
+  }
+
+  function renderSheet() {
+    const tbody = document.getElementById('sheetBody');
+    tbody.innerHTML = rows.map((r, i) => `
+      <tr>
+        <td class="row-num">${i + 1}</td>
+        <td class="name-cell">${r.name}</td>
+        <td id="base_${i}">£20.00</td>
+        <td>
+          <input type="number" class="cell-input" id="raise_${i}" value="${r.raisePct}" step="1" oninput="updateCell(${i})" /> %
+        </td>
+        <td id="share_${i}" style="font-weight:700;">£20.00</td>
+        <td>
+          £ <input type="number" class="cell-input" id="withdrew_${i}" value="${r.withdrew}" step="0.01" oninput="updateCell(${i})" />
+        </td>
+        <td>
+          £ <input type="number" class="cell-input" id="fee_${i}" value="${r.fee}" step="0.01" oninput="updateCell(${i})" />
+        </td>
+        <td id="personal_${i}" class="personal-col">£0.00</td>
+        <td id="tiktok_${i}" class="tiktok-col">£20.00</td>
+        <td id="status_${i}" style="text-align:center;"></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderExpenses() {
+    const expBody = document.getElementById('expenseBody');
+    expBody.innerHTML = expenses.map((exp, idx) => `
+      <tr class="expense-row">
+        <td class="row-num">E${idx + 1}</td>
+        <td colspan="3" style="text-align:left;">
+          <input
+            type="text"
+            class="cell-input-wide"
+            id="expNote_${idx}"
+            placeholder="Note (e.g. Food, Peppy's, drinks...)"
+            value="${(exp.note || '').replace(/"/g, '&quot;')}"
+            oninput="updateExpense(${idx})"
+          />
+        </td>
+        <td style="color:#fda4af; font-size:0.78rem; font-weight:700;">Minus:</td>
+        <td>
+          - £ <input
+            type="number"
+            class="cell-input"
+            id="expAmt_${idx}"
+            value="${exp.amount || 0}"
+            step="0.01"
+            min="0"
+            oninput="updateExpense(${idx})"
+          />
+        </td>
+        <td>—</td>
+        <td>—</td>
+        <td id="expDeductDisplay_${idx}" class="expense-col">-£0.00</td>
+        <td style="text-align:center;">
+          ${expenses.length > 1
+            ? `<button class="btn-del" onclick="removeExpenseRow(${idx})">X</button>`
+            : `<span class="status-badge status-expense">Expense</span>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function addExpenseRow() {
+    expenses.push({ note: '', amount: 0 });
+    renderExpenses();
+    recalc(true);
+  }
+
+  function removeExpenseRow(idx) {
+    expenses.splice(idx, 1);
+    renderExpenses();
+    recalc(true);
+  }
+
+  function updateExpense(idx) {
+    expenses[idx].note = document.getElementById(`expNote_${idx}`).value;
+    expenses[idx].amount = Math.max(0, parseFloat(document.getElementById(`expAmt_${idx}`).value) || 0);
+    recalc(true);
+  }
+
+  function updateCell(i) {
+    rows[i].raisePct = parseFloat(document.getElementById(`raise_${i}`).value) || 0;
+    rows[i].withdrew = parseFloat(document.getElementById(`withdrew_${i}`).value) || 0;
+    rows[i].fee = parseFloat(document.getElementById(`fee_${i}`).value) || 0;
+    recalc(true);
+  }
+
+  function recalc(shouldAutoSave = false) {
+    const pool = parseFloat(document.getElementById('totalPool').value) || 0;
+    const base = pool / 3;
+    document.getElementById('baseSplitText').textContent = `£${base.toFixed(2)}`;
+
+    let totalRaiseAdded = 0;
+    let totalEntitled = 0;
+    let totalWithdrawn = 0;
+    let totalFees = 0;
+    let totalPersonal = 0;
+
+    rows.forEach((r, i) => {
+      const raiseAmt = base * (r.raisePct / 100);
+      const totalShare = base + raiseAmt;
+      const personalGot = Math.max(0, r.withdrew - r.fee);
+      const staysInTikTok = totalShare - r.withdrew;
+
+      r.calc = { base, raiseAmt, totalShare, personalGot, staysInTikTok };
+
+      totalRaiseAdded += raiseAmt;
+      totalEntitled += totalShare;
+      totalWithdrawn += r.withdrew;
+      totalFees += r.fee;
+      totalPersonal += personalGot;
+
+      document.getElementById(`base_${i}`).textContent = `£${base.toFixed(2)}`;
+      document.getElementById(`share_${i}`).textContent = `£${totalShare.toFixed(2)} (+£${raiseAmt.toFixed(2)})`;
+      document.getElementById(`personal_${i}`).textContent = `£${personalGot.toFixed(2)}`;
+      document.getElementById(`tiktok_${i}`).textContent = `£${staysInTikTok.toFixed(2)}`;
+
+      const statusEl = document.getElementById(`status_${i}`);
+      if (r.withdrew <= 0) {
+        statusEl.innerHTML = `<span class="status-badge status-kept">In TikTok</span>`;
+      } else if (staysInTikTok > 0) {
+        statusEl.innerHTML = `<span class="status-badge status-withdrew">Took £${r.withdrew}</span>`;
+      } else {
+        statusEl.innerHTML = `<span class="status-badge status-withdrew">Full Out</span>`;
+      }
+    });
+
+    let totalExpenses = 0;
+    const activeNotes = [];
+    expenses.forEach((exp, idx) => {
+      const amt = exp.amount || 0;
+      totalExpenses += amt;
+      const deductCell = document.getElementById(`expDeductDisplay_${idx}`);
+      if (deductCell) deductCell.textContent = `-£${amt.toFixed(2)}`;
+      if (amt > 0 || (exp.note && exp.note.trim() !== '')) {
+        activeNotes.push(`${exp.note.trim() || 'Food'}: -£${amt.toFixed(2)}`);
+      }
+    });
+
+    const cashLeftInTikTok = pool - totalWithdrawn - totalExpenses;
+    const allTogetherRealCash = cashLeftInTikTok + totalPersonal;
+
+    document.getElementById('topWithdrawn').textContent = `£${totalWithdrawn.toFixed(2)}`;
+    document.getElementById('topExpenses').textContent = `-£${totalExpenses.toFixed(2)}`;
+    document.getElementById('topExpenseNotePreview').textContent =
+      activeNotes.length > 0 ? activeNotes.join(' | ') : 'No expenses yet';
+    document.getElementById('topTikTokLeft').textContent = `£${cashLeftInTikTok.toFixed(2)}`;
+    document.getElementById('topPersonalNet').textContent = `£${totalPersonal.toFixed(2)}`;
+    document.getElementById('topFeesPaid').textContent = `£${totalFees.toFixed(2)}`;
+    document.getElementById('topAllTogether').textContent = `£${allTogetherRealCash.toFixed(2)}`;
+    document.getElementById('topTogetherBreakdown').textContent =
+      `TikTok (£${cashLeftInTikTok.toFixed(2)}) + Got (£${totalPersonal.toFixed(2)})`;
+
+    document.getElementById('sumBase').textContent = `£${pool.toFixed(2)}`;
+    document.getElementById('sumRaiseInfo').textContent = `+£${totalRaiseAdded.toFixed(2)}`;
+    document.getElementById('sumEntitled').textContent = `£${totalEntitled.toFixed(2)}`;
+    document.getElementById('sumWithdrawn').textContent =
+      totalExpenses > 0
+        ? `£${totalWithdrawn.toFixed(2)} (Food -£${totalExpenses.toFixed(2)})`
+        : `£${totalWithdrawn.toFixed(2)}`;
+    document.getElementById('sumFees').textContent = `£${totalFees.toFixed(2)}`;
+    document.getElementById('sumPersonal').textContent = `£${totalPersonal.toFixed(2)}`;
+    document.getElementById('sumTikTok').textContent = `£${cashLeftInTikTok.toFixed(2)} in TikTok`;
+    document.getElementById('sumAllTogetherCell').textContent = `Together: £${allTogetherRealCash.toFixed(2)}`;
+
+    if (shouldAutoSave) {
+      autoSaveCurrentDateRow();
+    }
+  }
+
+  function getLogs() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveLogs(logs, triggerCloudPush = true) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    renderHistory();
+
+    const badge = document.getElementById('autoSaveBadge');
+    badge.textContent = '⚡ Auto-Saved!';
+    setTimeout(() => { badge.textContent = '⚡ Auto-Save: ON'; }, 1200);
+
+    if (triggerCloudPush) {
+      scheduleGitHubPush();
+    }
+  }
+
+  function autoSaveCurrentDateRow() {
+    const date = document.getElementById('sheetDate').value || new Date().toISOString().slice(0, 10);
+    const pool = parseFloat(document.getElementById('totalPool').value) || 0;
+    const totalWithdrawn = rows.reduce((s, r) => s + r.withdrew, 0);
+    const totalFees = rows.reduce((s, r) => s + r.fee, 0);
+    const totalPersonal = rows.reduce((s, r) => s + (r.calc ? r.calc.personalGot : 0), 0);
+    const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const expenseItems = expenses
+      .filter(e => (e.amount || 0) > 0 || (e.note && e.note.trim() !== ''))
+      .map(e => ({ note: e.note.trim() || 'Food / Expense', amount: e.amount || 0 }));
+
+    const leftInTikTok = pool - totalWithdrawn - totalExpenses;
+    const togetherCash = leftInTikTok + totalPersonal;
+
+    const logs = getLogs();
+    const existingIdx = logs.findIndex(l => l.date === date);
+
+    const entry = {
+      id: existingIdx >= 0 ? logs[existingIdx].id : Date.now(),
+      date,
+      monthKey: date.slice(0, 7),
+      pool,
+      totalWithdrawn,
+      totalFees,
+      totalExpenses,
+      expenseItems,
+      totalPersonal,
+      leftInTikTok,
+      togetherCash,
+      snapshot: JSON.parse(JSON.stringify(rows))
+    };
+
+    if (existingIdx >= 0) {
+      logs[existingIdx] = entry;
+    } else {
+      logs.unshift(entry);
+    }
+
+    logs.sort((a, b) => b.date.localeCompare(a.date));
+    saveLogs(logs, true);
+  }
+
+  // ==========================================
+  // GITHUB CLOUD AUTO-SYNC (PC <-> PHONE)
+  // ==========================================
+  function getGitHubConfig() {
+    try {
+      return JSON.parse(localStorage.getItem(GH_CONFIG_KEY));
+    } catch {
+      return null;
+    }
+  }
+
+  function updateCloudButtonState() {
+    const cfg = getGitHubConfig();
+    const btn = document.getElementById('cloudSyncBtn');
+    if (cfg && cfg.repo && cfg.token) {
+      btn.textContent = '☁️ GitHub Sync: ON';
+      btn.style.borderColor = '#10b981';
+      btn.style.color = '#6ee7b7';
+    } else {
+      btn.textContent = '☁️ GitHub Sync: Setup';
+      btn.style.borderColor = '#475569';
+      btn.style.color = '#cbd5e1';
+    }
+  }
+
+  function openSyncModal() {
+    const cfg = getGitHubConfig() || {};
+    document.getElementById('ghRepoInput').value = cfg.repo || '';
+    document.getElementById('ghTokenInput').value = cfg.token || '';
+    document.getElementById('syncModal').style.display = 'flex';
+  }
+
+  function closeSyncModal() {
+    document.getElementById('syncModal').style.display = 'none';
+  }
+
+  async function saveGitHubConfig() {
+    const repo = document.getElementById('ghRepoInput').value.trim();
+    const token = document.getElementById('ghTokenInput').value.trim();
+    if (!repo.includes('/') || !token) {
+      alert('Please enter both your GitHub username/repo (e.g. wasi/tiktok-splits) and your Personal Access Token.');
+      return;
+    }
+    localStorage.setItem(GH_CONFIG_KEY, JSON.stringify({ repo, token }));
+    updateCloudButtonState();
+    closeSyncModal();
+    await pushToGitHub();
+    alert('GitHub Auto-Sync enabled! Open this page on your other device and enter the same Repo & Token to keep them synced automatically.');
+  }
+
+  function disconnectGitHub() {
+    localStorage.removeItem(GH_CONFIG_KEY);
+    updateCloudButtonState();
+    closeSyncModal();
+  }
+
+  function scheduleGitHubPush() {
+    const cfg = getGitHubConfig();
+    if (!cfg || !cfg.repo || !cfg.token) return;
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+      pushToGitHub();
+    }, 1200);
+  }
+
+  async function pushToGitHub() {
+    const cfg = getGitHubConfig();
+    if (!cfg || !cfg.repo || !cfg.token) return;
+    const btn = document.getElementById('cloudSyncBtn');
+    btn.textContent = '☁️ Syncing...';
+
+    try {
+      const apiUrl = `https://api.github.com/repos/${cfg.repo}/contents/tiktok-data.json`;
+      let sha = null;
+
+      const getRes = await fetch(apiUrl, {
+        headers: { Authorization: `token ${cfg.token}`, Accept: 'application/vnd.github.v3+json' }
+      });
+      if (getRes.ok) {
+        const fileData = await getRes.json();
+        sha = fileData.sha;
+      }
+
+      const rawJson = JSON.stringify({ updatedAt: Date.now(), logs: getLogs() });
+      const passForEnc = sessionPassword || localStorage.getItem(PASS_HASH_KEY) || 'default-key';
+      const contentStr = await encryptPayload(rawJson, passForEnc);
+      const base64Content = btoa(unescape(encodeURIComponent(contentStr)));
+
+      const bodyObj = {
+        message: 'Auto-sync TikTok split sheet data',
+        content: base64Content
+      };
+      if (sha) bodyObj.sha = sha;
+
+      const putRes = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${cfg.token}`,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bodyObj)
+      });
+
+      btn.textContent = putRes.ok ? '☁️ Synced ✓' : '☁️ Sync Error';
+    } catch {
+      btn.textContent = '☁️ Offline';
+    }
+  }
+
+  async function pullFromGitHub(showAlert = false) {
+    const cfg = getGitHubConfig();
+    if (!cfg || !cfg.repo || !cfg.token) return;
+    const btn = document.getElementById('cloudSyncBtn');
+    btn.textContent = '☁️ Loading...';
+
+    try {
+      const apiUrl = `https://api.github.com/repos/${cfg.repo}/contents/tiktok-data.json`;
+      const res = await fetch(apiUrl, {
+        headers: { Authorization: `token ${cfg.token}`, Accept: 'application/vnd.github.v3+json' }
+      });
+      if (res.ok) {
+        const fileData = await res.json();
+        const decoded = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
+        const passForDec = sessionPassword || localStorage.getItem(PASS_HASH_KEY) || 'default-key';
+        const parsed = await decryptPayload(decoded, passForDec);
+        if (parsed && Array.isArray(parsed.logs)) {
+          saveLogs(parsed.logs, false);
+          if (parsed.logs.length > 0) {
+            loadEntryIntoSheet(parsed.logs[0]);
+          }
+          btn.textContent = '☁️ Synced ✓';
+          if (showAlert) alert('Pulled latest data from GitHub!');
+        }
+      } else {
+        btn.textContent = '☁️ GitHub Sync: ON';
+      }
+    } catch {
+      btn.textContent = '☁️ Offline';
+    }
+  }
+
+  function deleteRow(id) {
+    saveLogs(getLogs().filter(l => l.id !== id), true);
+  }
+
+  function clearAllHistory() {
+    if (confirm('Clear all saved logs?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      renderHistory();
+      scheduleGitHubPush();
+    }
+  }
+
+  function formatMonth(ym) {
+    const [y, m] = ym.split('-');
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  function formatMemberHistoryCell(m) {
+    const raiseAmt = (m.calc && m.calc.raiseAmt) || 0;
+    const totalShare = (m.calc && m.calc.totalShare) || 0;
+    const personalGot = (m.calc && m.calc.personalGot) || 0;
+    const staysInTikTok = (m.calc && m.calc.staysInTikTok) || 0;
+
+    return `
+      <div>
+        <span class="saved-tag tag-raise">+${m.raisePct}% (+£${raiseAmt.toFixed(2)})</span>
+        <span class="saved-tag tag-fee">Fee: £${m.fee.toFixed(2)}</span>
+      </div>
+      <div style="margin-top:3px; color:#cbd5e1;">
+        Share: <b>£${totalShare.toFixed(2)}</b> | Took: <b>£${m.withdrew.toFixed(2)}</b>
+      </div>
+      <div style="margin-top:2px;">
+        Got: <b style="color:#93c5fd;">£${personalGot.toFixed(2)}</b> |
+        TikTok: <b style="color:#6ee7b7;">£${staysInTikTok.toFixed(2)}</b>
+      </div>
+    `;
+  }
+
+  function formatExpenseHistoryCell(item) {
+    const expTotal = item.totalExpenses || 0;
+    const list = item.expenseItems || [];
+    if (expTotal <= 0 && list.length === 0) {
+      return `<span style="color:var(--muted); font-size:0.75rem;">£0.00</span>`;
+    }
+    const notesHtml = list.map(e =>
+      `<div style="font-size:0.74rem; color:#cbd5e1;">• ${e.note}: <b style="color:#fda4af;">-£${Number(e.amount).toFixed(2)}</b></div>`
+    ).join('');
+    return `<div style="color:#fda4af; font-weight:800;">-£${expTotal.toFixed(2)}</div>${notesHtml}`;
+  }
+
+  function updateAllTimeTotals(logs) {
+    document.getElementById('allTimeCountBadge').textContent = `${logs.length} Logged Day(s)`;
+
+    let gPool = 0, gWithdrawn = 0, gFees = 0, gExpenses = 0, gTikTok = 0, gPersonal = 0, gTogether = 0;
+    const memberTotals = [
+      { personal: 0, tiktok: 0 },
+      { personal: 0, tiktok: 0 },
+      { personal: 0, tiktok: 0 }
+    ];
+
+    logs.forEach(item => {
+      const itemPersonal = item.snapshot.reduce((s, r) => s + ((r.calc && r.calc.personalGot) || 0), 0);
+      const itemTogether = item.leftInTikTok + itemPersonal;
+
+      gPool += item.pool || 0;
+      gWithdrawn += item.totalWithdrawn || 0;
+      gFees += item.totalFees || 0;
+      gExpenses += item.totalExpenses || 0;
+      gTikTok += item.leftInTikTok || 0;
+      gPersonal += itemPersonal;
+      gTogether += itemTogether;
+
+      item.snapshot.forEach((m, idx) => {
+        if (memberTotals[idx]) {
+          memberTotals[idx].personal += (m.calc && m.calc.personalGot) || 0;
+          memberTotals[idx].tiktok += (m.calc && m.calc.staysInTikTok) || 0;
+        }
+      });
+    });
+
+    document.getElementById('grandTogether').textContent = `£${gTogether.toFixed(2)}`;
+    document.getElementById('grandPoolSub').textContent = `Pool: £${gPool.toFixed(2)}`;
+    document.getElementById('grandTikTok').textContent = `£${gTikTok.toFixed(2)}`;
+    document.getElementById('grandWithdrawnSub').textContent = `Took: £${gWithdrawn.toFixed(2)}`;
+    document.getElementById('grandExpenses').textContent = `-£${gExpenses.toFixed(2)}`;
+    document.getElementById('grandPersonal').textContent = `£${gPersonal.toFixed(2)}`;
+    document.getElementById('grandFeesSub').textContent = `Fees: £${gFees.toFixed(2)}`;
+
+    const ids = ['Wasi', 'Rayyan', 'Wali'];
+    ids.forEach((name, idx) => {
+      const tot = memberTotals[idx].personal + memberTotals[idx].tiktok;
+      document.getElementById(`grand${name}`).textContent = `£${tot.toFixed(2)}`;
+      document.getElementById(`grand${name}Sub`).textContent =
+        `Got £${memberTotals[idx].personal.toFixed(0)} | TikTok £${memberTotals[idx].tiktok.toFixed(0)}`;
+    });
+  }
+
+  function renderHistory() {
+    const logs = getLogs();
+    updateAllTimeTotals(logs);
+
+    const filterEl = document.getElementById('monthFilter');
+    const selected = filterEl.value;
+
+    const months = [...new Set(logs.map(l => l.monthKey))].sort().reverse();
+    filterEl.innerHTML = `<option value="ALL">All Months (${logs.length})</option>` +
+      months.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${formatMonth(m)}</option>`).join('');
+
+    const visible = selected === 'ALL' ? logs : logs.filter(l => l.monthKey === selected);
+    const tbody = document.getElementById('historyBody');
+
+    if (visible.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:24px;">Type any number above and it will auto-save here automatically!</td></tr>`;
+      return;
+    }
+
+    const grouped = {};
+    visible.forEach(item => {
+      if (!grouped[item.monthKey]) grouped[item.monthKey] = [];
+      grouped[item.monthKey].push(item);
+    });
+
+    let html = '';
+    Object.keys(grouped).sort().reverse().forEach(monthKey => {
+      const monthLogs = grouped[monthKey];
+
+      let mPool = 0, mWithdrawn = 0, mFees = 0, mExpenses = 0, mTikTok = 0, mTogether = 0;
+      const mPeople = [
+        { personal: 0, tiktok: 0, fee: 0, raiseAmt: 0 },
+        { personal: 0, tiktok: 0, fee: 0, raiseAmt: 0 },
+        { personal: 0, tiktok: 0, fee: 0, raiseAmt: 0 }
+      ];
+
+      monthLogs.forEach(item => {
+        const itemPersonal = item.snapshot.reduce((s, r) => s + ((r.calc && r.calc.personalGot) || 0), 0);
+        const itemTogether = item.leftInTikTok + itemPersonal;
+
+        mPool += item.pool || 0;
+        mWithdrawn += item.totalWithdrawn || 0;
+        mFees += item.totalFees || 0;
+        mExpenses += item.totalExpenses || 0;
+        mTikTok += item.leftInTikTok || 0;
+        mTogether += itemTogether;
+
+        item.snapshot.forEach((p, idx) => {
+          mPeople[idx].personal += (p.calc && p.calc.personalGot) || 0;
+          mPeople[idx].tiktok += (p.calc && p.calc.staysInTikTok) || 0;
+          mPeople[idx].fee += p.fee || 0;
+          mPeople[idx].raiseAmt += (p.calc && p.calc.raiseAmt) || 0;
+        });
+      });
+
+      html += `
+        <tr>
+          <td colspan="10" class="month-banner">
+            📂 ${formatMonth(monthKey)} (${monthLogs.length} Days) | Food: -£${mExpenses.toFixed(2)} | Month Together: £${mTogether.toFixed(2)}
+          </td>
+        </tr>
+      `;
+
+      monthLogs.forEach(item => {
+        const [wasi, rayyan, wali] = item.snapshot;
+        const feesTotal = item.totalFees || 0;
+        const itemPersonal = item.snapshot.reduce((s, r) => s + ((r.calc && r.calc.personalGot) || 0), 0);
+        const itemTogether = item.leftInTikTok + itemPersonal;
+
+        html += `
+          <tr style="cursor:pointer;" onclick="loadEntryIntoSheetByDate('${item.date}')">
+            <td style="text-align:left; font-weight:700; white-space:nowrap;">📅 ${item.date}</td>
+            <td style="font-weight:700;">£${item.pool.toFixed(2)}</td>
+            <td>
+              <div style="color:var(--amber); font-weight:700;">Took: £${item.totalWithdrawn.toFixed(2)}</div>
+              <div style="color:#fda4af; font-size:0.75rem;">Fees: £${feesTotal.toFixed(2)}</div>
+            </td>
+            <td style="text-align:left;">${formatExpenseHistoryCell(item)}</td>
+            <td class="tiktok-col">£${item.leftInTikTok.toFixed(2)}</td>
+            <td class="together-col">£${itemTogether.toFixed(2)}</td>
+            <td class="saved-member-cell">${formatMemberHistoryCell(wasi)}</td>
+            <td class="saved-member-cell">${formatMemberHistoryCell(rayyan)}</td>
+            <td class="saved-member-cell">${formatMemberHistoryCell(wali)}</td>
+            <td style="text-align:center;" onclick="event.stopPropagation();">
+              <button class="btn-del" onclick="deleteRow(${item.id})">Del</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+        <tr class="month-total-row">
+          <td style="text-align:left;">∑ ${formatMonth(monthKey)}</td>
+          <td>£${mPool.toFixed(2)}</td>
+          <td>
+            <div style="color:#fcd34d;">Took: £${mWithdrawn.toFixed(2)}</div>
+            <div style="color:#fda4af; font-size:0.74rem;">Fees: £${mFees.toFixed(2)}</div>
+          </td>
+          <td style="text-align:left; color:#fda4af;">-£${mExpenses.toFixed(2)}</td>
+          <td style="color:#6ee7b7;">£${mTikTok.toFixed(2)}</td>
+          <td style="color:#d8b4fe;">£${mTogether.toFixed(2)}</td>
+          ${mPeople.map(mp => `
+            <td style="text-align:left; font-size:0.76rem; line-height:1.35;">
+              <div>Total: <b style="color:#fff;">£${(mp.personal + mp.tiktok).toFixed(2)}</b></div>
+              <div>Got: <b style="color:#93c5fd;">£${mp.personal.toFixed(2)}</b> | TikTok: <b style="color:#6ee7b7;">£${mp.tiktok.toFixed(2)}</b></div>
+            </td>
+          `).join('')}
+          <td style="text-align:center; font-size:0.72rem; color:#6ee7b7;">Sum</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function loadEntryIntoSheetByDate(dateStr) {
+    const found = getLogs().find(l => l.date === dateStr);
+    if (found) loadEntryIntoSheet(found);
+  }
+
+  function csvCell(val) {
+    const str = String(val ?? '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  function exportToExcelCSV() {
+    recalc(false);
+    const csvRows = [];
+    const currentPool = parseFloat(document.getElementById('totalPool').value) || 0;
+    const currentDate = document.getElementById('sheetDate').value || new Date().toISOString().slice(0, 10);
+
+    csvRows.push(['TIKTOK & PERSONAL SPLIT SHEET', `Date: ${currentDate}`, `Pool: £${currentPool.toFixed(2)}`]);
+    csvRows.push(['Member / Expense', 'Base (÷3)', 'Raise %', 'Raise (£)', 'Total Share (£)', 'Withdrew/Spent (£)', 'Fee (£)', 'Personal Got (£)', 'Stays in TikTok (£)']);
+
+    rows.forEach(r => {
+      csvRows.push([
+        r.name, `£${r.calc.base.toFixed(2)}`, `${r.raisePct}%`, `£${r.calc.raiseAmt.toFixed(2)}`,
+        `£${r.calc.totalShare.toFixed(2)}`, `£${r.withdrew.toFixed(2)}`, `£${r.fee.toFixed(2)}`,
+        `£${r.calc.personalGot.toFixed(2)}`, `£${r.calc.staysInTikTok.toFixed(2)}`
+      ]);
+    });
+
+    expenses.forEach(e => {
+      if ((e.amount || 0) > 0 || (e.note && e.note.trim() !== '')) {
+        csvRows.push([`EXPENSE: ${e.note.trim() || 'Food'}`, '-', '-', '-', '-', `-£${(e.amount || 0).toFixed(2)}`, '-', '-', `-£${(e.amount || 0).toFixed(2)}`]);
+      }
+    });
+
+    const csvContent = '\uFEFF' + csvRows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `TikTok-Splits-${currentDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function zeroOutSheet() {
+    document.getElementById('totalPool').value = 0;
+    rows = [
+      { name: 'Wasi', raisePct: 0, withdrew: 0, fee: 0 },
+      { name: 'Rayyan', raisePct: 0, withdrew: 0, fee: 0 },
+      { name: 'Wali', raisePct: 0, withdrew: 0, fee: 0 }
+    ];
+    expenses = [{ note: '', amount: 0 }];
+    renderSheet();
+    renderExpenses();
+    recalc(true);
+  }
+
+  function resetDefault() {
+    document.getElementById('totalPool').value = 60;
+    rows = JSON.parse(JSON.stringify(presetRows));
+    expenses = [{ note: '', amount: 0 }];
+    renderSheet();
+    renderExpenses();
+    recalc(true);
+  }
+
+  init();
+</script>
+
+</body>
+</html>

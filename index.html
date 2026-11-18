@@ -672,7 +672,7 @@
     <div class="ribbon-controls">
       <div class="date-bar">
         <span style="font-size:0.76rem; color:var(--muted);">📅</span>
-        <input type="date" id="sheetDate" />
+        <input type="date" id="sheetDate" oninput="onDateInput()" />
       </div>
       <button class="btn-small" onclick="changePassword()">🔑 Change Pass</button>
       <button class="btn-small" onclick="lockApp()">🔒 Lock</button>
@@ -684,7 +684,7 @@
     <div class="summary-cell">
       <div class="summary-label">1. TikTok Pool (£)</div>
       <div class="summary-value">
-        £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="recalc()" />
+        £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="onPoolInput()" />
       </div>
       <div class="sub-note">Base (÷3): <strong id="baseSplitText" style="color:#fff;">£20.00</strong></div>
     </div>
@@ -775,8 +775,6 @@
     <div class="btn-group">
       <button class="btn btn-reset" onclick="zeroOutSheet()">Zero (£0)</button>
       <button class="btn btn-reset" onclick="resetDefault()">£60 Preset</button>
-      <button class="btn btn-reset" onclick="copySyncCode()">📲 Copy Sync</button>
-      <button class="btn btn-reset" onclick="pasteSyncCode()">📥 Paste Sync</button>
       <button class="btn btn-excel" onclick="exportToExcelCSV()">📊 Excel (.csv)</button>
       <button class="btn btn-save" onclick="saveHistoryRow()">+ Save Row to Permanent Log</button>
     </div>
@@ -912,23 +910,32 @@
       alert('Wrong current password!');
       return;
     }
-    const nextPass = prompt('Enter new password for this device:');
+    const nextPass = prompt('Enter new password:');
     if (nextPass && nextPass.trim().length > 0) {
       localStorage.setItem(PASS_KEY, nextPass.trim());
+      syncMeta.passUpdatedAt = Date.now();
+      saveSyncMeta();
+      schedulePublish();
       alert('Password updated!');
     }
   }
 
   function init() {
+    loadSyncMeta();
     if (localStorage.getItem(UNLOCK_KEY) === 'true') {
       document.getElementById('lockScreen').style.display = 'none';
     }
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById('sheetDate').value = today;
-    renderSheet();
-    renderExpenses();
-    recalc();
+    const savedSheet = sheetFromStorage();
+    if (savedSheet) applySheetState(savedSheet, true);
+    else {
+      renderSheet();
+      renderExpenses();
+      recalc();
+    }
     renderHistory();
+    startBackgroundSync();
   }
 
   function renderSheet() {
@@ -999,18 +1006,21 @@
     expenses.push({ note: '', amount: 0 });
     renderExpenses();
     recalc();
+    markSheetDirty();
   }
 
   function removeExpenseRow(idx) {
     expenses.splice(idx, 1);
     renderExpenses();
     recalc();
+    markSheetDirty();
   }
 
   function updateExpense(idx) {
     expenses[idx].note = document.getElementById(`expNote_${idx}`).value;
     expenses[idx].amount = Math.max(0, parseFloat(document.getElementById(`expAmt_${idx}`).value) || 0);
     recalc();
+    markSheetDirty();
   }
 
   function updateCell(i) {
@@ -1018,6 +1028,7 @@
     rows[i].withdrew = parseFloat(document.getElementById(`withdrew_${i}`).value) || 0;
     rows[i].fee = parseFloat(document.getElementById(`fee_${i}`).value) || 0;
     recalc();
+    markSheetDirty();
   }
 
   function recalc() {
@@ -1110,6 +1121,9 @@
   function saveLogs(logs) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
     renderHistory();
+    syncMeta.logsUpdatedAt = Date.now();
+    saveSyncMeta();
+    schedulePublish();
   }
 
   function saveHistoryRow() {
@@ -1147,28 +1161,450 @@
     saveLogs(logs);
   }
 
-  // Phone <-> PC Quick Sync Functions
-  function copySyncCode() {
-    const data = JSON.stringify(getLogs());
-    navigator.clipboard.writeText(data).then(() => {
-      alert('Sync code copied! Open this site on your phone/PC and tap "Paste Sync" to load all saved logs.');
-    }).catch(() => {
-      prompt('Copy this sync code:', data);
-    });
+  // Background sync across phones and computers. No copy or paste.
+  const SHEET_KEY = 'tiktok_excel_sheet_v1';
+  const META_KEY = 'tiktok_sync_meta_v1';
+  const SYNC_TOPIC = 's/c4e91a7b2d8065f3/v1';
+  const SYNC_SECRET = 'kR7mQ2vL9pX4sD8nW3aF6cH1';
+  const SYNC_BROKERS = [
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://broker.emqx.io:8084/mqtt'
+  ];
+
+  let syncMeta = { sheetUpdatedAt: 0, logsUpdatedAt: 0, passUpdatedAt: 0 };
+  let syncClientId = 'c' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+  let syncSockets = [];
+  let syncKeyPromise = null;
+  let publishTimer = null;
+  let publishChain = Promise.resolve();
+  let lastSent = '';
+  let pendingSheet = null;
+  let pendingSheetAt = 0;
+  let sawRemote = false;
+  let remoteStamp = { sheetUpdatedAt: 0, logsUpdatedAt: 0, passUpdatedAt: 0 };
+
+  function loadSyncMeta() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(META_KEY));
+      if (saved) syncMeta = Object.assign(syncMeta, saved);
+    } catch (e) {}
   }
 
-  function pasteSyncCode() {
-    const pasted = prompt('Paste the Sync Code from your other device:');
-    if (!pasted) return;
-    try {
-      const parsed = JSON.parse(pasted);
-      if (Array.isArray(parsed)) {
-        saveLogs(parsed);
-        alert(`Synced ${parsed.length} saved log(s) successfully!`);
-      }
-    } catch {
-      alert('Invalid sync code.');
+  function saveSyncMeta() {
+    localStorage.setItem(META_KEY, JSON.stringify(syncMeta));
+  }
+
+  function sheetFromStorage() {
+    try { return JSON.parse(localStorage.getItem(SHEET_KEY)); }
+    catch (e) { return null; }
+  }
+
+  function rememberSheet(sheet) {
+    localStorage.setItem(SHEET_KEY, JSON.stringify(sheet));
+  }
+
+  function captureSheet() {
+    return {
+      date: document.getElementById('sheetDate').value,
+      pool: document.getElementById('totalPool').value,
+      rows: rows.map(r => ({
+        name: r.name,
+        raisePct: r.raisePct,
+        withdrew: r.withdrew,
+        fee: r.fee
+      })),
+      expenses: expenses.map(e => ({ note: e.note || '', amount: e.amount || 0 }))
+    };
+  }
+
+  function editingField() {
+    const el = document.activeElement;
+    if (!el || el.id === 'passInput' || el.id === 'rememberPass') return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    const type = (el.type || '').toLowerCase();
+    return type === 'text' || type === 'number' || type === 'date';
+  }
+
+  function applySheetState(sheet, force) {
+    if (!sheet || !Array.isArray(sheet.rows) || !sheet.rows.length) return false;
+    if (!force && editingField()) {
+      pendingSheet = sheet;
+      return false;
     }
+    rows = sheet.rows.map(r => ({
+      name: r.name,
+      raisePct: Number(r.raisePct) || 0,
+      withdrew: Number(r.withdrew) || 0,
+      fee: Number(r.fee) || 0
+    }));
+    expenses = (Array.isArray(sheet.expenses) && sheet.expenses.length)
+      ? sheet.expenses.map(e => ({ note: e.note || '', amount: Number(e.amount) || 0 }))
+      : [{ note: '', amount: 0 }];
+    if (sheet.pool !== undefined && sheet.pool !== null) {
+      document.getElementById('totalPool').value = sheet.pool;
+    }
+    if (sheet.date) document.getElementById('sheetDate').value = sheet.date;
+    rememberSheet(captureSheet());
+    renderSheet();
+    renderExpenses();
+    recalc();
+    pendingSheet = null;
+    return true;
+  }
+
+  function onPoolInput() {
+    recalc();
+    markSheetDirty();
+  }
+
+  function onDateInput() {
+    markSheetDirty();
+  }
+
+  function markSheetDirty() {
+    syncMeta.sheetUpdatedAt = Date.now();
+    saveSyncMeta();
+    rememberSheet(captureSheet());
+    pendingSheet = null;
+    schedulePublish();
+  }
+
+  function localSnapshot() {
+    return {
+      sheetUpdatedAt: syncMeta.sheetUpdatedAt || 0,
+      logsUpdatedAt: syncMeta.logsUpdatedAt || 0,
+      passUpdatedAt: syncMeta.passUpdatedAt || 0,
+      sheet: captureSheet(),
+      logs: getLogs(),
+      password: localStorage.getItem(PASS_KEY) || null,
+      from: syncClientId
+    };
+  }
+
+  function payloadToPublish() {
+    const snap = localSnapshot();
+    if (pendingSheet && pendingSheetAt > snap.sheetUpdatedAt) {
+      snap.sheet = pendingSheet;
+      snap.sheetUpdatedAt = pendingSheetAt;
+    }
+    if ((snap.logs || []).length && !snap.logsUpdatedAt && !sawRemote) {
+      snap.logsUpdatedAt = Date.now();
+      syncMeta.logsUpdatedAt = snap.logsUpdatedAt;
+      saveSyncMeta();
+    }
+    return snap;
+  }
+
+  function hasUserData(snap) {
+    return !!((snap.logs && snap.logs.length) || snap.sheetUpdatedAt > 0 || snap.passUpdatedAt > 0);
+  }
+
+  function unionLogs(a, b) {
+    const map = new Map();
+    [...(b || []), ...(a || [])].forEach(item => {
+      if (item && item.id != null) map.set(String(item.id), item);
+    });
+    return [...map.values()].sort((x, y) => Number(y.id) - Number(x.id));
+  }
+
+  function applyRemote(remote) {
+    try {
+      if (!remote || typeof remote !== 'object' || remote.from === syncClientId) return;
+      sawRemote = true;
+      remoteStamp = {
+        sheetUpdatedAt: Math.max(remoteStamp.sheetUpdatedAt || 0, remote.sheetUpdatedAt || 0),
+        logsUpdatedAt: Math.max(remoteStamp.logsUpdatedAt || 0, remote.logsUpdatedAt || 0),
+        passUpdatedAt: Math.max(remoteStamp.passUpdatedAt || 0, remote.passUpdatedAt || 0)
+      };
+
+      const local = localSnapshot();
+      let logs = local.logs || [];
+      let logsAt = local.logsUpdatedAt || 0;
+      let sheetAt = local.sheetUpdatedAt || 0;
+      let password = local.password;
+      let passAt = local.passUpdatedAt || 0;
+      let publishBack = false;
+      const remoteLogsAt = remote.logsUpdatedAt || 0;
+      const remoteSheetAt = remote.sheetUpdatedAt || 0;
+      const remotePassAt = remote.passUpdatedAt || 0;
+
+      if (logsAt === 0 && remoteLogsAt === 0 && (logs.length || (remote.logs && remote.logs.length))) {
+        logs = unionLogs(logs, remote.logs);
+        logsAt = Date.now();
+        publishBack = true;
+      } else if (remoteLogsAt > logsAt) {
+        logs = Array.isArray(remote.logs) ? remote.logs : [];
+        logsAt = remoteLogsAt;
+      } else if (logsAt > remoteLogsAt) {
+        publishBack = true;
+      }
+
+      if (remoteSheetAt > sheetAt && remote.sheet) {
+        sheetAt = remoteSheetAt;
+      } else if (sheetAt > remoteSheetAt) {
+        publishBack = true;
+      }
+
+      if (remotePassAt > passAt) {
+        password = remote.password || null;
+        passAt = remotePassAt;
+      } else if (passAt > remotePassAt) {
+        publishBack = true;
+      }
+
+      syncMeta.logsUpdatedAt = logsAt;
+      syncMeta.passUpdatedAt = passAt;
+      const deferSheet = remoteSheetAt > (local.sheetUpdatedAt || 0) && remote.sheet && editingField();
+      if (!deferSheet) syncMeta.sheetUpdatedAt = sheetAt;
+      saveSyncMeta();
+
+      if ((password || null) !== (local.password || null)) {
+        if (password) localStorage.setItem(PASS_KEY, password);
+        else localStorage.removeItem(PASS_KEY);
+      }
+
+      if (JSON.stringify(logs) !== JSON.stringify(local.logs || [])) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+        renderHistory();
+      }
+
+      if (remoteSheetAt > (local.sheetUpdatedAt || 0) && remote.sheet) {
+        if (deferSheet) {
+          pendingSheet = remote.sheet;
+          pendingSheetAt = remoteSheetAt;
+        } else {
+          applySheetState(remote.sheet, true);
+          syncMeta.sheetUpdatedAt = remoteSheetAt;
+          saveSyncMeta();
+        }
+      }
+
+      if (publishBack) schedulePublish();
+    } catch (e) {}
+  }
+
+  function flushPendingSheet() {
+    if (!pendingSheet || editingField()) return;
+    if ((syncMeta.sheetUpdatedAt || 0) >= pendingSheetAt) {
+      pendingSheet = null;
+      return;
+    }
+    const sheet = pendingSheet;
+    const at = pendingSheetAt;
+    pendingSheet = null;
+    syncMeta.sheetUpdatedAt = at;
+    saveSyncMeta();
+    applySheetState(sheet, true);
+  }
+
+  function syncKey() {
+    if (!syncKeyPromise) {
+      syncKeyPromise = crypto.subtle.digest('SHA-256', new TextEncoder().encode(SYNC_SECRET)).then(raw =>
+        crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+      );
+    }
+    return syncKeyPromise;
+  }
+
+  function bytesToB64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(s);
+  }
+
+  function b64ToBytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function encryptText(text) {
+    const key = await syncKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const cipher = new Uint8Array(await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv }, key, new TextEncoder().encode(text)
+    ));
+    const joined = new Uint8Array(iv.length + cipher.length);
+    joined.set(iv, 0);
+    joined.set(cipher, iv.length);
+    return bytesToB64(joined);
+  }
+
+  async function decryptText(b64) {
+    const key = await syncKey();
+    const bytes = b64ToBytes(b64);
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12)
+    );
+    return new TextDecoder().decode(plain);
+  }
+
+  function varInt(n) {
+    const o = [];
+    do {
+      let d = n % 128;
+      n = Math.floor(n / 128);
+      if (n > 0) d |= 128;
+      o.push(d);
+    } while (n > 0);
+    return new Uint8Array(o);
+  }
+
+  function mqttStr(s) {
+    const u = new TextEncoder().encode(s);
+    const out = new Uint8Array(2 + u.length);
+    out[0] = u.length >> 8;
+    out[1] = u.length & 255;
+    out.set(u, 2);
+    return out;
+  }
+
+  function mqttPacket(header, chunks) {
+    let size = 0;
+    chunks.forEach(c => { size += c.length; });
+    const rl = varInt(size);
+    const out = new Uint8Array(1 + rl.length + size);
+    out[0] = header;
+    out.set(rl, 1);
+    let o = 1 + rl.length;
+    chunks.forEach(c => { out.set(c, o); o += c.length; });
+    return out;
+  }
+
+  function connectPacket(id) {
+    return mqttPacket(0x10, [
+      new Uint8Array([0, 4, 77, 81, 84, 84, 4, 2, 0, 60]),
+      mqttStr(id)
+    ]);
+  }
+
+  function subscribePacket(topic) {
+    return mqttPacket(0x82, [
+      new Uint8Array([0, 1]),
+      mqttStr(topic),
+      new Uint8Array([0])
+    ]);
+  }
+
+  function publishPacket(topic, text) {
+    return mqttPacket(0x31, [mqttStr(topic), new TextEncoder().encode(text)]);
+  }
+
+  function parseMqtt(u) {
+    if (!u || u.length < 2) return null;
+    let i = 1, mult = 1, rem = 0, digit;
+    do {
+      if (i >= u.length) return null;
+      digit = u[i++];
+      rem += (digit & 127) * mult;
+      mult *= 128;
+    } while (digit & 128);
+    const body = u.slice(i, i + rem);
+    const type = u[0] & 0xf0;
+    if (type === 0x20) return { kind: 'connack' };
+    if (type === 0x30) {
+      const tlen = (body[0] << 8) | body[1];
+      const topic = new TextDecoder().decode(body.slice(2, 2 + tlen));
+      let off = 2 + tlen;
+      const qos = (u[0] >> 1) & 3;
+      if (qos > 0) off += 2;
+      return { kind: 'pub', topic, payload: new TextDecoder().decode(body.slice(off)) };
+    }
+    return { kind: 'other' };
+  }
+
+  function openBroker(url) {
+    const sock = { url, ws: null, lastText: null, timer: null, ready: false };
+    syncSockets.push(sock);
+
+    function connect() {
+      if (sock.ws && (sock.ws.readyState === 0 || sock.ws.readyState === 1)) return;
+      let ws;
+      try { ws = new WebSocket(url, ['mqtt']); }
+      catch (e) {
+        setTimeout(connect, 4000);
+        return;
+      }
+      sock.ws = ws;
+      sock.ready = false;
+      ws.binaryType = 'arraybuffer';
+      ws.onopen = () => {
+        ws.send(connectPacket('t' + Math.random().toString(16).slice(2, 10)));
+      };
+      ws.onmessage = (ev) => {
+        const msg = parseMqtt(new Uint8Array(ev.data));
+        if (!msg) return;
+        if (msg.kind === 'connack') {
+          sock.ready = true;
+          ws.send(subscribePacket(SYNC_TOPIC));
+          clearInterval(sock.timer);
+          sock.timer = setInterval(() => {
+            if (ws.readyState === 1) ws.send(new Uint8Array([0xC0, 0x00]));
+          }, 45000);
+          setTimeout(restoreIfNewer, 1500);
+        } else if (msg.kind === 'pub' && msg.topic === SYNC_TOPIC) {
+          decryptText(msg.payload).then(text => {
+            try { applyRemote(JSON.parse(text)); } catch (e) {}
+          }).catch(() => {});
+        }
+      };
+      ws.onclose = () => {
+        sock.ready = false;
+        clearInterval(sock.timer);
+        setTimeout(connect, 4000);
+      };
+      ws.onerror = () => {};
+    }
+
+    sock.publish = (text) => {
+      sock.lastText = text;
+      if (sock.ready && sock.ws && sock.ws.readyState === 1) {
+        sock.ws.send(publishPacket(SYNC_TOPIC, text));
+      }
+    };
+    connect();
+  }
+
+  function enqueue(snap) {
+    publishChain = publishChain.then(() => deliver(snap)).catch(() => {});
+  }
+
+  async function deliver(snap) {
+    const plain = JSON.stringify(snap);
+    if (plain === lastSent) return;
+    const hidden = await encryptText(plain);
+    lastSent = plain;
+    syncSockets.forEach(s => s.publish(hidden));
+  }
+
+  function schedulePublish() {
+    clearTimeout(publishTimer);
+    publishTimer = setTimeout(() => enqueue(payloadToPublish()), 600);
+  }
+
+  function restoreIfNewer() {
+    const local = payloadToPublish();
+    if (!hasUserData(local)) return;
+    if (!sawRemote) {
+      enqueue(local);
+      return;
+    }
+    const ahead =
+      local.sheetUpdatedAt > (remoteStamp.sheetUpdatedAt || 0) ||
+      local.logsUpdatedAt > (remoteStamp.logsUpdatedAt || 0) ||
+      local.passUpdatedAt > (remoteStamp.passUpdatedAt || 0);
+    if (ahead) enqueue(local);
+  }
+
+  function startBackgroundSync() {
+    if (!window.crypto || !crypto.subtle || typeof WebSocket === 'undefined') return;
+    SYNC_BROKERS.forEach(openBroker);
+    setTimeout(restoreIfNewer, 4000);
+    document.addEventListener('focusout', () => setTimeout(flushPendingSheet, 40));
   }
 
   function deleteRow(id) {
@@ -1176,10 +1612,7 @@
   }
 
   function clearAllHistory() {
-    if (confirm('Clear all saved logs?')) {
-      localStorage.removeItem(STORAGE_KEY);
-      renderHistory();
-    }
+    if (confirm('Clear all saved logs?')) saveLogs([]);
   }
 
   function formatMonth(ym) {
@@ -1433,6 +1866,7 @@
     renderSheet();
     renderExpenses();
     recalc();
+    markSheetDirty();
   }
 
   function resetDefault() {
@@ -1442,6 +1876,7 @@
     renderSheet();
     renderExpenses();
     recalc();
+    markSheetDirty();
   }
 
   init();

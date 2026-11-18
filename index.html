@@ -686,7 +686,7 @@
       <div class="summary-value">
         £ <input type="number" id="totalPool" class="pool-input" value="60" step="0.01" oninput="onPoolInput()" />
       </div>
-      <div class="sub-note">Half each: <strong id="baseSplitText" style="color:#fff;">£10.00</strong></div>
+      <div class="sub-note">Base (÷3): <strong id="baseSplitText" style="color:#fff;">£20.00</strong></div>
     </div>
 
     <div class="summary-cell">
@@ -704,7 +704,7 @@
     <div class="summary-cell">
       <div class="summary-label">4. Still in TikTok</div>
       <div class="summary-value" style="color:var(--excel-green);" id="topTikTokLeft">£45.00</div>
-      <div class="sub-note">Half shares − Food</div>
+      <div class="sub-note">Pool − Took − Food</div>
     </div>
 
     <div class="summary-cell">
@@ -727,7 +727,7 @@
         <tr>
           <th class="row-num">#</th>
           <th class="name-col"><span class="col-letter">A</span>Member / Item</th>
-          <th><span class="col-letter">B</span>Half</th>
+          <th><span class="col-letter">B</span>Base (÷3)</th>
           <th><span class="col-letter">C</span>Raise %</th>
           <th><span class="col-letter">D</span>Total Share</th>
           <th><span class="col-letter">E</span>Withdrew / Spent</th>
@@ -803,24 +803,19 @@
         <div class="sub">From TikTok</div>
       </div>
       <div class="alltime-card">
-        <div class="lbl">Personal (Got)</div>
-        <div class="val" style="color:#60a5fa;" id="grandPersonal">£0.00</div>
-        <div class="sub" id="grandFeesSub">Fees: £0.00</div>
-      </div>
-      <div class="alltime-card">
-        <div class="lbl">Wasi Total</div>
+        <div class="lbl">Wasi money</div>
         <div class="val" style="color:#fff;" id="grandWasi">£0.00</div>
-        <div class="sub" id="grandWasiSub">Got £0 | TikTok £0</div>
+        <div class="sub" id="grandWasiSub">Can withdraw £0</div>
       </div>
       <div class="alltime-card">
-        <div class="lbl">Rayyan Total</div>
+        <div class="lbl">Rayyan money</div>
         <div class="val" style="color:#fff;" id="grandRayyan">£0.00</div>
-        <div class="sub" id="grandRayyanSub">Got £0 | TikTok £0</div>
+        <div class="sub" id="grandRayyanSub">Can withdraw £0</div>
       </div>
       <div class="alltime-card">
-        <div class="lbl">Wali Total</div>
+        <div class="lbl">Wali money</div>
         <div class="val" style="color:#fff;" id="grandWali">£0.00</div>
-        <div class="sub" id="grandWaliSub">Got £0 | TikTok £0</div>
+        <div class="sub" id="grandWaliSub">Can withdraw £0</div>
       </div>
     </div>
   </div>
@@ -944,11 +939,11 @@
       <tr>
         <td class="row-num">${i + 1}</td>
         <td class="name-cell">${r.name}</td>
-        <td id="base_${i}">£10.00</td>
+        <td id="base_${i}">£20.00</td>
         <td>
           <input type="number" class="cell-input" id="raise_${i}" value="${r.raisePct}" step="1" oninput="updateCell(${i})" /> %
         </td>
-        <td id="share_${i}" style="font-weight:700;">£10.00</td>
+        <td id="share_${i}" style="font-weight:700;">£20.00</td>
         <td>
           £ <input type="number" class="cell-input" id="withdrew_${i}" value="${r.withdrew}" step="0.01" oninput="updateCell(${i})" />
         </td>
@@ -956,7 +951,7 @@
           £ <input type="number" class="cell-input" id="fee_${i}" value="${r.fee}" step="0.01" oninput="updateCell(${i})" />
         </td>
         <td id="personal_${i}" class="personal-col">£0.00</td>
-        <td id="tiktok_${i}" class="tiktok-col">£10.00</td>
+        <td id="tiktok_${i}" class="tiktok-col">£20.00</td>
         <td id="status_${i}" style="text-align:center;"></td>
       </tr>
     `).join('');
@@ -1034,42 +1029,38 @@
   function recalc() {
     const pool = parseFloat(document.getElementById('totalPool').value) || 0;
     const base = pool / 3;
-    const evenHalf = base / 2;
-    document.getElementById('baseSplitText').textContent = `£${evenHalf.toFixed(2)}`;
+    document.getElementById('baseSplitText').textContent = `£${base.toFixed(2)}`;
 
     let totalRaiseAdded = 0;
     let totalEntitled = 0;
     let totalWithdrawn = 0;
     let totalFees = 0;
     let totalPersonal = 0;
-    let totalTikTokHalf = 0;
 
     rows.forEach((r, i) => {
       const raiseAmt = base * (r.raisePct / 100);
-      const fullShare = base + raiseAmt;
-      const totalShare = fullShare / 2;
-      const staysInTikTok = fullShare / 2;
-      const personalGot = fullShare / 2;
-      const withdrawalLeft = fullShare - r.withdrew;
+      const totalShare = base + raiseAmt;
+      const shownShare = totalShare / 2;
+      const personalGot = Math.max(0, r.withdrew - r.fee);
+      const staysInTikTok = totalShare - r.withdrew;
 
       r.calc = { base, raiseAmt, totalShare, personalGot, staysInTikTok };
 
       totalRaiseAdded += raiseAmt;
-      totalEntitled += totalShare;
+      totalEntitled += shownShare;
       totalWithdrawn += r.withdrew;
       totalFees += r.fee;
       totalPersonal += personalGot;
-      totalTikTokHalf += staysInTikTok;
 
-      document.getElementById(`base_${i}`).textContent = `£${evenHalf.toFixed(2)}`;
-      document.getElementById(`share_${i}`).textContent = `£${totalShare.toFixed(2)}`;
+      document.getElementById(`base_${i}`).textContent = `£${base.toFixed(2)}`;
+      document.getElementById(`share_${i}`).textContent = `£${shownShare.toFixed(2)} (+£${(raiseAmt / 2).toFixed(2)})`;
       document.getElementById(`personal_${i}`).textContent = `£${personalGot.toFixed(2)}`;
       document.getElementById(`tiktok_${i}`).textContent = `£${staysInTikTok.toFixed(2)}`;
 
       const statusEl = document.getElementById(`status_${i}`);
       if (r.withdrew <= 0) {
         statusEl.innerHTML = `<span class="status-badge status-kept">In TikTok</span>`;
-      } else if (withdrawalLeft > 0) {
+      } else if (staysInTikTok > 0) {
         statusEl.innerHTML = `<span class="status-badge status-withdrew">Took £${r.withdrew}</span>`;
       } else {
         statusEl.innerHTML = `<span class="status-badge status-withdrew">Full Out</span>`;
@@ -1088,7 +1079,7 @@
       }
     });
 
-    const cashLeftInTikTok = totalTikTokHalf - totalExpenses;
+    const cashLeftInTikTok = pool - totalWithdrawn - totalExpenses;
     const allTogetherRealCash = cashLeftInTikTok + totalPersonal;
 
     document.getElementById('topWithdrawn').textContent = `£${totalWithdrawn.toFixed(2)}`;
@@ -1102,7 +1093,7 @@
     document.getElementById('topTogetherBreakdown').textContent =
       `TikTok (£${cashLeftInTikTok.toFixed(2)}) + Got (£${totalPersonal.toFixed(2)})`;
 
-    document.getElementById('sumBase').textContent = `£${(evenHalf * rows.length).toFixed(2)}`;
+    document.getElementById('sumBase').textContent = `£${pool.toFixed(2)}`;
     document.getElementById('sumRaiseInfo').textContent = `+£${totalRaiseAdded.toFixed(2)}`;
     document.getElementById('sumEntitled').textContent = `£${totalEntitled.toFixed(2)}`;
     document.getElementById('sumWithdrawn').textContent =
@@ -1111,7 +1102,7 @@
         : `£${totalWithdrawn.toFixed(2)}`;
     document.getElementById('sumFees').textContent = `£${totalFees.toFixed(2)}`;
     document.getElementById('sumPersonal').textContent = `£${totalPersonal.toFixed(2)}`;
-    document.getElementById('sumTikTok').textContent = `£${totalTikTokHalf.toFixed(2)} in TikTok`;
+    document.getElementById('sumTikTok').textContent = `£${cashLeftInTikTok.toFixed(2)} in TikTok`;
     document.getElementById('sumAllTogetherCell').textContent = `Together: £${allTogetherRealCash.toFixed(2)}`;
   }
 
@@ -1661,11 +1652,11 @@
   function updateAllTimeTotals(logs) {
     document.getElementById('allTimeCountBadge').textContent = `${logs.length} Saved Log(s)`;
 
-    let gPool = 0, gWithdrawn = 0, gFees = 0, gExpenses = 0, gTikTok = 0, gPersonal = 0, gTogether = 0;
+    let gPool = 0, gWithdrawn = 0, gExpenses = 0, gTikTok = 0, gTogether = 0;
     const memberTotals = [
-      { personal: 0, tiktok: 0 },
-      { personal: 0, tiktok: 0 },
-      { personal: 0, tiktok: 0 }
+      { money: 0, canWithdraw: 0 },
+      { money: 0, canWithdraw: 0 },
+      { money: 0, canWithdraw: 0 }
     ];
 
     logs.forEach(item => {
@@ -1674,16 +1665,19 @@
 
       gPool += item.pool || 0;
       gWithdrawn += item.totalWithdrawn || 0;
-      gFees += item.totalFees || 0;
       gExpenses += item.totalExpenses || 0;
       gTikTok += item.leftInTikTok || 0;
-      gPersonal += itemPersonal;
       gTogether += itemTogether;
 
       item.snapshot.forEach((m, idx) => {
         if (memberTotals[idx]) {
-          memberTotals[idx].personal += (m.calc && m.calc.personalGot) || 0;
-          memberTotals[idx].tiktok += (m.calc && m.calc.staysInTikTok) || 0;
+          const withdrewNow = Number(m.withdrew) || 0;
+          const share = (m.calc && m.calc.totalShare != null)
+            ? Number(m.calc.totalShare)
+            : ((m.calc && m.calc.personalGot) || 0) + ((m.calc && m.calc.staysInTikTok) || 0);
+          const left = Math.max(0, share / 2 - withdrewNow);
+          memberTotals[idx].money += left;
+          memberTotals[idx].canWithdraw += left;
         }
       });
     });
@@ -1693,15 +1687,12 @@
     document.getElementById('grandTikTok').textContent = `£${gTikTok.toFixed(2)}`;
     document.getElementById('grandWithdrawnSub').textContent = `Took: £${gWithdrawn.toFixed(2)}`;
     document.getElementById('grandExpenses').textContent = `-£${gExpenses.toFixed(2)}`;
-    document.getElementById('grandPersonal').textContent = `£${gPersonal.toFixed(2)}`;
-    document.getElementById('grandFeesSub').textContent = `Fees: £${gFees.toFixed(2)}`;
 
     const ids = ['Wasi', 'Rayyan', 'Wali'];
     ids.forEach((name, idx) => {
-      const tot = memberTotals[idx].personal + memberTotals[idx].tiktok;
-      document.getElementById(`grand${name}`).textContent = `£${tot.toFixed(2)}`;
+      document.getElementById(`grand${name}`).textContent = `£${memberTotals[idx].money.toFixed(2)}`;
       document.getElementById(`grand${name}Sub`).textContent =
-        `Got £${memberTotals[idx].personal.toFixed(0)} | TikTok £${memberTotals[idx].tiktok.toFixed(0)}`;
+        `Can withdraw £${memberTotals[idx].canWithdraw.toFixed(2)}`;
     });
   }
 
@@ -1833,11 +1824,11 @@
     const currentDate = document.getElementById('sheetDate').value || new Date().toISOString().slice(0, 10);
 
     csvRows.push(['TIKTOK & PERSONAL SPLIT SHEET', `Date: ${currentDate}`, `Pool: £${currentPool.toFixed(2)}`]);
-    csvRows.push(['Member / Expense', 'Half', 'Raise %', 'Raise (£)', 'Total Share (£)', 'Withdrew/Spent (£)', 'Fee (£)', 'Personal Got (£)', 'Stays in TikTok (£)']);
+    csvRows.push(['Member / Expense', 'Base (÷3)', 'Raise %', 'Raise (£)', 'Total Share (£)', 'Withdrew/Spent (£)', 'Fee (£)', 'Personal Got (£)', 'Stays in TikTok (£)']);
 
     rows.forEach(r => {
       csvRows.push([
-        r.name, `£${(r.calc.base / 2).toFixed(2)}`, `${r.raisePct}%`, `£${r.calc.raiseAmt.toFixed(2)}`,
+        r.name, `£${r.calc.base.toFixed(2)}`, `${r.raisePct}%`, `£${r.calc.raiseAmt.toFixed(2)}`,
         `£${r.calc.totalShare.toFixed(2)}`, `£${r.withdrew.toFixed(2)}`, `£${r.fee.toFixed(2)}`,
         `£${r.calc.personalGot.toFixed(2)}`, `£${r.calc.staysInTikTok.toFixed(2)}`
       ]);

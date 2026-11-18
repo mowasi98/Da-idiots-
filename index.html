@@ -948,7 +948,7 @@
         <td>
           <input type="number" class="cell-input" id="raise_${i}" value="${r.raisePct}" step="1" oninput="updateCell(${i})" /> %
         </td>
-        <td id="share_${i}" style="font-weight:700;">£20.00</td>
+        <td id="share_${i}" style="font-weight:700;">£10.00</td>
         <td>
           £ <input type="number" class="cell-input" id="withdrew_${i}" value="${r.withdrew}" step="0.01" oninput="updateCell(${i})" />
         </td>
@@ -956,7 +956,7 @@
           £ <input type="number" class="cell-input" id="fee_${i}" value="${r.fee}" step="0.01" oninput="updateCell(${i})" />
         </td>
         <td id="personal_${i}" class="personal-col">£0.00</td>
-        <td id="tiktok_${i}" class="tiktok-col">£20.00</td>
+        <td id="tiktok_${i}" class="tiktok-col">£10.00</td>
         <td id="status_${i}" style="text-align:center;"></td>
       </tr>
     `).join('');
@@ -1044,9 +1044,11 @@
 
     rows.forEach((r, i) => {
       const raiseAmt = base * (r.raisePct / 100);
-      const totalShare = base + raiseAmt;
+      const fullShare = base + raiseAmt;
+      const totalShare = base / 2;
+      const staysInTikTok = base / 2;
       const personalGot = Math.max(0, r.withdrew - r.fee);
-      const staysInTikTok = totalShare - r.withdrew;
+      const withdrawalLeft = fullShare - r.withdrew;
 
       r.calc = { base, raiseAmt, totalShare, personalGot, staysInTikTok };
 
@@ -1057,14 +1059,14 @@
       totalPersonal += personalGot;
 
       document.getElementById(`base_${i}`).textContent = `£${base.toFixed(2)}`;
-      document.getElementById(`share_${i}`).textContent = `£${totalShare.toFixed(2)} (+£${raiseAmt.toFixed(2)})`;
+      document.getElementById(`share_${i}`).textContent = `£${totalShare.toFixed(2)}`;
       document.getElementById(`personal_${i}`).textContent = `£${personalGot.toFixed(2)}`;
       document.getElementById(`tiktok_${i}`).textContent = `£${staysInTikTok.toFixed(2)}`;
 
       const statusEl = document.getElementById(`status_${i}`);
       if (r.withdrew <= 0) {
         statusEl.innerHTML = `<span class="status-badge status-kept">In TikTok</span>`;
-      } else if (staysInTikTok > 0) {
+      } else if (withdrawalLeft > 0) {
         statusEl.innerHTML = `<span class="status-badge status-withdrew">Took £${r.withdrew}</span>`;
       } else {
         statusEl.innerHTML = `<span class="status-badge status-withdrew">Full Out</span>`;
